@@ -1,6 +1,5 @@
 ---
-type: "agent_requested"
-description: "New feature development, complex architecture design, multi-module integration, involving database/UI design or when user input /spec"
+type: "always_apply"
 ---
 
 Intelligent Judgment Criteria:
