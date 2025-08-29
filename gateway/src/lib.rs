@@ -1,14 +1,21 @@
-pub fn add(left: u64, right: u64) -> u64 {
-    left + right
-}
+//! Gateway Service Library
+//!
+//! AI API Router Gateway Microservice implementing 3-layer architecture:
+//! - Handler Layer: HTTP request/response processing
+//! - Service Layer: Business logic and orchestration
+//! - Repository Layer: Data access and gRPC client management
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+// Core modules - Reusable primitives
+pub mod core;
 
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
-}
+// Configuration management
+pub mod config;
+
+// Business feature modules
+pub mod features;
+
+// HTTP middleware
+pub mod middleware;
+
+// gRPC client abstractions
+pub mod grpc;

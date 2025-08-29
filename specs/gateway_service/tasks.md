@@ -2,14 +2,15 @@
 
 ## Phase 1: Core Infrastructure Setup
 
-- [ ] 1. Project Structure and Dependencies
+- [x] 1. Project Structure and Dependencies
   - Create gateway service module structure following 3-layer architecture
   - Add required dependencies to Cargo.toml (tonic, jsonwebtoken, config, tracing, etc.)
   - Set up workspace configuration and build system
   - Configure rustfmt and clippy rules
-  - _Requirement: Requirement 4 - Configuration Management, Requirement 7 - Performance and Scalability_
+  - _Requirement: Requirement 4 - Configuration Management, Requirement 7 - Performance and
+    Scalability_
 
-- [ ] 2. Core Error Handling and Types
+- [-] 2. Core Error Handling and Types (SKIPPED - Write during coding)
   - Implement core error types in src/core/error.rs
   - Create Result type aliases in src/core/result.rs
   - Define common error handling patterns
@@ -17,11 +18,35 @@
   - _Requirement: Requirement 6 - Error Handling and Recovery_
 
 - [ ] 3. Configuration Management System
-  - Implement settings structure in src/config/settings.rs
-  - Create hot reload mechanism in src/config/hot_reload.rs
-  - Add environment variable support
-  - Implement configuration validation
   - _Requirement: Requirement 4 - Configuration Management_
+
+- [ ] 3.1. Basic Configuration Structure
+  - Define configuration struct with all required fields
+  - Implement Serde serialization/deserialization
+  - Add default values and validation rules
+  - Create configuration loading from files and environment variables
+  - _Subtask of: Configuration Management System_
+
+- [ ] 3.2. Environment Variable Integration
+  - Implement environment variable override system
+  - Add prefix-based environment variable mapping
+  - Create type conversion for different config field types
+  - Add environment variable validation and error handling
+  - _Subtask of: Configuration Management System_
+
+- [ ] 3.3. Hot Reload Mechanism
+  - Implement file watching for configuration changes
+  - Create configuration reload notification system
+  - Add thread-safe configuration sharing across application
+  - Implement graceful configuration update without service restart
+  - _Subtask of: Configuration Management System_
+
+- [ ] 3.4. Configuration Validation and Testing
+  - Add comprehensive configuration validation
+  - Create configuration validation endpoints for health checks
+  - Implement configuration testing utilities
+  - Add error handling for invalid configurations
+  - _Subtask of: Configuration Management System_
 
 - [ ] 4. Tracing and Observability Foundation
   - Set up tracing infrastructure in src/core/tracing.rs
@@ -60,7 +85,8 @@
   - Create client lifecycle management
   - Add connection health monitoring
   - Implement retry and circuit breaker patterns
-  - _Requirement: Requirement 2 - Microservice Coordination, Requirement 6 - Error Handling and Recovery_
+  - _Requirement: Requirement 2 - Microservice Coordination, Requirement 6 - Error Handling and
+    Recovery_
 
 - [ ] 9. Memory Service Client
   - Implement Memory service gRPC client in src/grpc/memory.rs
@@ -97,7 +123,8 @@
   - Create service coordination logic (Memory → Rewrite → Router)
   - Add context data processing and aggregation
   - Implement cost tracking and optimization logic
-  - _Requirement: Requirement 1 - Request Reception and Routing, Requirement 2 - Microservice Coordination_
+  - _Requirement: Requirement 1 - Request Reception and Routing, Requirement 2 - Microservice
+    Coordination_
 
 - [ ] 14. Chat Handler Layer
   - Implement chat handlers in src/features/chat/handler.rs
