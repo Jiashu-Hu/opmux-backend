@@ -26,11 +26,13 @@ A Rust backend project for Opmux.
 This project uses both Rust's built-in formatter and Prettier for different file types:
 
 - **Rust code**: Formatted with `rustfmt`
+
   ```bash
   cargo fmt
   ```
 
 - **Other files** (Markdown, YAML, JSON, TOML): Formatted with Prettier
+
   ```bash
   npm run format
   ```
@@ -44,6 +46,7 @@ This project uses both Rust's built-in formatter and Prettier for different file
 ### Testing
 
 Run tests with:
+
 ```bash
 cargo test
 ```
@@ -51,6 +54,7 @@ cargo test
 ### Linting
 
 Run Clippy for Rust code analysis:
+
 ```bash
 cargo clippy
 ```

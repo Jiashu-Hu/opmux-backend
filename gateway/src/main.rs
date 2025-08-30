@@ -8,7 +8,7 @@ async fn main() {
     // Start the server
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
     println!("Gateway server running on http://0.0.0.0:3000");
-    
+
     axum::serve(listener, app).await.unwrap();
 }
 
