@@ -186,11 +186,3 @@ When refactoring or migrating existing code, follow these strict principles:
 - Using unnecessary async or borrow optimizations not in original code
 
 - Creating new abstraction layers
-
-## Development Process
-
-- Development Planning: Do not start development directly; first plan which modules to use and how
-  to structure; if there is missing information, ask the user to supplement it first
-
-- Code Review: After development is completed, review which areas do not comply with the
-  specifications
