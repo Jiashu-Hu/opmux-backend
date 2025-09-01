@@ -5,3 +5,6 @@
 
 // Health check module with 3-layer architecture
 pub mod health;
+
+// Ingress module with 3-layer architecture - core business logic
+pub mod ingress;
