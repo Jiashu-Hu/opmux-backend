@@ -1,5 +1,7 @@
 // Repository Layer - Data access & mocks
 
+use super::error::HealthError;
+
 // Data structure returned by repository
 pub struct SystemStatus {
     pub is_healthy: bool,
@@ -15,15 +17,17 @@ impl HealthRepository {
 
     // Data access method - currently uses mock data
     // In the future, this could check actual system resources, databases, etc.
-    pub async fn get_system_status(&self) -> Result<SystemStatus, String> {
+    pub async fn get_system_status(&self) -> Result<SystemStatus, HealthError> {
         // Mock implementation - always returns healthy
         // In real implementation, this would check:
         // - Database connectivity
-        // - External service availability  
+        // - External service availability
         // - System resources (memory, disk, etc.)
-        
-        Ok(SystemStatus {
-            is_healthy: true,
-        })
+        // Any failures would be mapped to HealthError::SystemStatusCheckFailed
+
+        // Uncomment the line below to test error handling:
+        // return Err(HealthError::SystemStatusCheckFailed);
+
+        Ok(SystemStatus { is_healthy: true })
     }
 }
