@@ -1,6 +1,6 @@
 // Repository Layer - gRPC client management & mocks
 
-use super::mockdata::MockDataProvider;
+use super::{error::IngressError, mockdata::MockDataProvider};
 
 // Data structures returned by repository (simulating gRPC responses)
 #[derive(Debug, Clone)]
@@ -26,8 +26,9 @@ impl IngressRepository {
     }
 
     // Mock Memory Service - retrieve conversation context
-    pub async fn get_context(&self, _user_id: &str) -> Result<ContextData, String> {
+    pub async fn get_context(&self, _user_id: &str) -> Result<ContextData, IngressError> {
         // Mock implementation - in real version this would be gRPC call to Memory Service
+        // In real implementation, gRPC failures would be mapped to ContextRetrievalFailed
         Ok(MockDataProvider::get_mock_context())
     }
 
@@ -37,8 +38,9 @@ impl IngressRepository {
         prompt: &str,
         _context: &ContextData,
         _metadata: &serde_json::Value,
-    ) -> Result<RouterResponse, String> {
+    ) -> Result<RouterResponse, IngressError> {
         // Mock implementation - in real version this would be gRPC call to Router Service
+        // In real implementation, gRPC failures would be mapped to RequestOrchestrationFailed
         Ok(MockDataProvider::get_mock_router_response(prompt))
     }
 
@@ -48,8 +50,9 @@ impl IngressRepository {
         _user_id: &str,
         _new_message: &str,
         _response: &str,
-    ) -> Result<(), String> {
+    ) -> Result<(), IngressError> {
         // Mock implementation - in real version this would be gRPC call to Memory Service
+        // In real implementation, gRPC failures would be mapped to ContextUpdateFailed
         Ok(())
     }
 }

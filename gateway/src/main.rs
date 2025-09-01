@@ -7,6 +7,9 @@ use gateway::features::{health, ingress};
 
 #[tokio::main]
 async fn main() {
+    // Initialize tracing for structured logging
+    tracing_subscriber::fmt::init();
+
     // Create router with health check and ingress endpoints
     let app = Router::new()
         .route("/", get(hello_world))
@@ -15,9 +18,9 @@ async fn main() {
 
     // Start the server
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
-    println!("Gateway server running on http://0.0.0.0:3000");
-    println!("Health check available at http://0.0.0.0:3000/health");
-    println!("Ingress endpoint available at http://0.0.0.0:3000/api/v1/chat");
+    tracing::info!("Gateway server running on http://0.0.0.0:3000");
+    tracing::info!("Health check available at http://0.0.0.0:3000/health");
+    tracing::info!("Ingress endpoint available at http://0.0.0.0:3000/api/v1/chat");
 
     axum::serve(listener, app).await.unwrap();
 }

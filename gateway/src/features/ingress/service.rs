@@ -2,6 +2,7 @@
 
 use super::{
     constants::{AI_RESPONSE_ROLE, FINISH_REASON_STOP, REWRITE_PREFIX},
+    error::IngressError,
     repository::IngressRepository,
 };
 use serde::{Deserialize, Serialize};
@@ -44,7 +45,7 @@ impl IngressService {
         &self,
         request: IngressRequest,
         user_id: String,
-    ) -> Result<IngressResponse, String> {
+    ) -> Result<IngressResponse, IngressError> {
         let start_time = std::time::Instant::now();
 
         // Step 1: Get conversation context from Memory Service
@@ -52,7 +53,7 @@ impl IngressService {
             .repository
             .get_context(&user_id)
             .await
-            .map_err(|e| format!("Failed to get context: {}", e))?;
+            .map_err(|_| IngressError::ContextRetrievalFailed)?;
 
         // Step 2: Check if rewrite is needed (based on metadata)
         let processed_prompt = self.process_prompt(&request.prompt, &request.metadata).await?;
@@ -62,13 +63,13 @@ impl IngressService {
             .repository
             .route_request(&processed_prompt, &context, &request.metadata)
             .await
-            .map_err(|e| format!("Failed to route request: {}", e))?;
+            .map_err(|_| IngressError::RequestOrchestrationFailed)?;
 
         // Step 4: Update conversation context in Memory Service
         self.repository
             .update_context(&user_id, &request.prompt, &router_response.ai_response)
             .await
-            .map_err(|e| format!("Failed to update context: {}", e))?;
+            .map_err(|_| IngressError::ContextUpdateFailed)?;
 
         // Step 5: Calculate processing time and return response
         let processing_time = start_time.elapsed().as_millis() as u64;
@@ -91,7 +92,7 @@ impl IngressService {
         &self,
         prompt: &str,
         metadata: &serde_json::Value,
-    ) -> Result<String, String> {
+    ) -> Result<String, IngressError> {
         // Check if rewrite is requested in metadata
         let needs_rewrite = metadata.get("rewrite").and_then(|v| v.as_bool()).unwrap_or(false);
 

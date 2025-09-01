@@ -27,11 +27,7 @@ pub const MEMORY_SERVICE_TIMEOUT_MS: u64 = 5000;
 pub const ROUTER_SERVICE_TIMEOUT_MS: u64 = 10000;
 pub const REWRITE_SERVICE_TIMEOUT_MS: u64 = 3000;
 
-/// Error messages
-pub const ERROR_EMPTY_PROMPT: &str = "Prompt cannot be empty";
-pub const ERROR_CONTEXT_RETRIEVAL: &str = "Failed to retrieve conversation context";
-pub const ERROR_ROUTING_FAILED: &str = "Failed to route request to AI service";
-pub const ERROR_CONTEXT_UPDATE: &str = "Failed to update conversation context";
+// Error messages are now handled by IngressError enum in error.rs
 
 /// Validation constants
 pub const MIN_PROMPT_LENGTH: usize = 1;

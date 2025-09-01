@@ -1,9 +1,10 @@
 // Ingress module following 3-layer architecture
 // Handles incoming requests and coordinates microservices
 
+pub mod error; // Error handling for ingress operations
 pub mod handler; // Handler Layer - HTTP request/response processing
-pub mod repository;
-pub mod service; // Service Layer - Business logic and orchestration // Repository Layer - gRPC client management & mocks
+pub mod repository; // Repository Layer - gRPC client management & mocks
+pub mod service; // Service Layer - Business logic and orchestration
 
 // Configuration and data modules
 pub mod constants; // Constants and hardcoded values
