@@ -3,7 +3,7 @@ use axum::{
     routing::{get, post},
     Router,
 };
-use gateway::{health, ingress};
+use gateway::features::{health, ingress};
 
 #[tokio::main]
 async fn main() {
