@@ -2,21 +2,72 @@
 
 use super::error::HealthError;
 
-// Data structure returned by repository
+/// System status information returned by health checks.
+///
+/// This structure represents the overall health state of the system
+/// and its dependencies. In production, this would include detailed
+/// information about various system components.
 pub struct SystemStatus {
+    /// Whether the system is currently healthy and able to serve requests.
+    ///
+    /// `true` indicates all critical systems are operational.
+    /// `false` indicates one or more critical systems are failing.
     pub is_healthy: bool,
 }
 
-// Repository struct - handles data access and transformations
+/// Repository for health check data access and system monitoring.
+///
+/// This repository handles all data access operations related to health checks,
+/// including system status monitoring, dependency validation, and resource checks.
+/// Currently uses mock implementations, but will be extended to include real
+/// system monitoring capabilities.
+///
+/// # Future Extensions
+///
+/// - Database connectivity checks
+/// - External service availability monitoring
+/// - System resource monitoring (CPU, memory, disk)
+/// - Circuit breaker status checks
 pub struct HealthRepository;
 
 impl HealthRepository {
+    /// Creates a new instance of the health repository.
+    ///
+    /// # Returns
+    ///
+    /// A new `HealthRepository` instance ready for health check operations.
     pub fn new() -> Self {
         Self
     }
 
-    // Data access method - currently uses mock data
-    // In the future, this could check actual system resources, databases, etc.
+    /// Retrieves the current system status by checking all critical components.
+    ///
+    /// This method performs comprehensive health checks across all system components
+    /// and dependencies. Currently uses mock data, but will be extended to include
+    /// real system monitoring capabilities.
+    ///
+    /// # Returns
+    ///
+    /// - `Ok(SystemStatus)` - System status information if checks succeed
+    /// - `Err(HealthError::SystemStatusCheckFailed)` - If any critical system check fails
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if:
+    /// - Database connectivity fails
+    /// - External service dependencies are unavailable
+    /// - System resources are critically low
+    /// - Any other critical system component fails
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// let repository = HealthRepository::new();
+    /// match repository.get_system_status().await {
+    ///     Ok(status) => println!("System is healthy: {}", status.is_healthy),
+    ///     Err(e) => eprintln!("Health check failed: {}", e),
+    /// }
+    /// ```
     pub async fn get_system_status(&self) -> Result<SystemStatus, HealthError> {
         // Mock implementation - always returns healthy
         // In real implementation, this would check:

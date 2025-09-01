@@ -1,14 +1,36 @@
-// Ingress module following 3-layer architecture
-// Handles incoming requests and coordinates microservices
+//! Ingress module for chat request processing.
+//!
+//! Handles incoming chat requests and coordinates AI response generation
+//! through microservice orchestration. Follows 3-layer architecture with
+//! structured error handling.
+//!
+//! # Request Flow
+//!
+//! 1. **Handler** - Validates HTTP requests and extracts data
+//! 2. **Service** - Orchestrates business logic and microservice calls
+//! 3. **Repository** - Manages gRPC communication with AI services
+//!
+//! # Usage
+//!
+//! ```bash
+//! curl -X POST http://localhost:3000/api/v1/chat \
+//!   -H "Content-Type: application/json" \
+//!   -d '{"prompt": "Hello!", "metadata": {}}'
+//! ```
 
-pub mod error; // Error handling for ingress operations
-pub mod handler; // Handler Layer - HTTP request/response processing
-pub mod repository; // Repository Layer - gRPC client management & mocks
-pub mod service; // Service Layer - Business logic and orchestration
+/// Error handling for ingress operations.
+pub mod error;
+/// Handler Layer - HTTP request/response processing.
+pub mod handler;
+/// Repository Layer - gRPC client management & mocks.
+pub mod repository;
+/// Service Layer - Business logic and orchestration.
+pub mod service;
 
-// Configuration and data modules
-pub mod constants; // Constants and hardcoded values
-pub mod mockdata; // Mock data for development and testing
+/// Constants and hardcoded values.
+pub mod constants;
+/// Mock data for development and testing.
+pub mod mockdata;
 
 // Re-export the handler for easy access
 pub use handler::ingress_handler;

@@ -7,8 +7,21 @@ use super::{
 };
 use axum::{extract::Json, response::Json as ResponseJson};
 
-// Handler function - only handles HTTP requests, validation, and response formatting
-// TODO: In future, this will extract user_id from JWT token in Authorization header
+/// HTTP handler for chat ingress endpoint.
+///
+/// # Flow
+/// 1. Validates request (non-empty prompt)
+/// 2. Extracts user_id (currently mock, future: from JWT)
+/// 3. Processes request through service layer
+/// 4. Returns JSON response or error
+///
+/// # Parameters
+/// - `request` - JSON chat request with prompt and metadata
+///
+/// # Returns
+/// JSON response with AI content, model info, cost, and timing
+///
+/// TODO: Extract user_id from JWT token in Authorization header.
 pub async fn ingress_handler(
     Json(request): Json<IngressRequest>,
 ) -> Result<ResponseJson<IngressResponse>, IngressError> {

@@ -7,40 +7,69 @@ use super::{
 };
 use serde::{Deserialize, Serialize};
 
-// Request/Response models
+/// Incoming chat request from clients.
 #[derive(Deserialize)]
 pub struct IngressRequest {
+    /// User's chat prompt/message.
     pub prompt: String,
+    /// Additional request metadata (rewrite flags, preferences, etc.).
     pub metadata: serde_json::Value,
 }
 
+/// AI assistant response structure.
 #[derive(Serialize)]
 pub struct AIResponse {
+    /// AI-generated response content.
     pub content: String,
-    pub role: String,                  // "assistant"
-    pub finish_reason: Option<String>, // "stop", "length", etc.
+    /// Response role (always "assistant").
+    pub role: String,
+    /// Reason for response completion ("stop", "length", etc.).
+    pub finish_reason: Option<String>,
 }
 
+/// Complete ingress response with AI content and metadata.
 #[derive(Serialize)]
 pub struct IngressResponse {
+    /// AI assistant response.
     pub response: AIResponse,
+    /// AI model used for generation.
     pub model_used: String,
+    /// Request cost in USD.
     pub cost: f64,
+    /// Whether response came from cache.
     pub cache_hit: bool,
+    /// Total processing time in milliseconds.
     pub processing_time_ms: u64,
 }
 
-// Service struct - handles business logic and orchestration
+/// Service for ingress request processing and microservice orchestration.
+///
+/// Coordinates the entire chat request flow: context retrieval, prompt processing,
+/// AI routing, and response aggregation.
 pub struct IngressService {
     repository: IngressRepository,
 }
 
 impl IngressService {
+    /// Creates a new ingress service instance.
     pub fn new() -> Self {
         Self { repository: IngressRepository::new() }
     }
 
-    // Main business logic - orchestrates the entire request flow
+    /// Processes a chat request through the complete AI pipeline.
+    ///
+    /// # Flow
+    /// 1. Retrieves conversation context from Memory Service
+    /// 2. Processes prompt (applies rewrite if requested)
+    /// 3. Routes to AI services via Router Service
+    /// 4. Updates conversation context with new exchange
+    ///
+    /// # Parameters
+    /// - `request` - Chat request with prompt and metadata
+    /// - `user_id` - User identifier for context management
+    ///
+    /// # Returns
+    /// Complete AI response with metadata (cost, model, processing time)
     pub async fn process_request(
         &self,
         request: IngressRequest,
@@ -87,7 +116,17 @@ impl IngressService {
         })
     }
 
-    // Business logic for prompt processing (future: integrate with Rewrite Service)
+    /// Processes prompt with optional rewriting based on metadata.
+    ///
+    /// Checks `metadata.rewrite` flag and applies rewrite prefix if true.
+    /// Future: Will integrate with Rewrite Service for advanced optimization.
+    ///
+    /// # Parameters
+    /// - `prompt` - Original user prompt
+    /// - `metadata` - Request metadata containing rewrite flag
+    ///
+    /// # Returns
+    /// Processed prompt (with rewrite prefix if applicable)
     async fn process_prompt(
         &self,
         prompt: &str,
