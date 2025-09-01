@@ -8,3 +8,7 @@ edition = "2021"
 axum = { workspace = true }
 tokio = { workspace = true }
 serde = { workspace = true }
+# JSON support for health check endpoint
+serde_json = "1.0"
+# Time handling for health check timestamps
+chrono = { version = "0.4", features = ["serde"] }

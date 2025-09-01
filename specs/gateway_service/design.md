@@ -97,9 +97,9 @@ gateway/
 │   │   │   ├── service.rs      # JWT validation logic
 │   │   │   ├── repository.rs   # Supabase integration
 │   │   │   └── models.rs       # Auth data structures
-│   │   ├── chat/
+│   │   ├── ingress/
 │   │   │   ├── mod.rs
-│   │   │   ├── handler.rs      # Chat endpoint handlers
+│   │   │   ├── handler.rs      # Ingress endpoint handlers
 │   │   │   ├── service.rs      # Request orchestration
 │   │   │   ├── repository.rs   # gRPC client management
 │   │   │   └── models.rs       # Request/response models
@@ -127,7 +127,7 @@ gateway/
 
 1. **HTTP Request Reception**
    - Client sends POST to `/api/v1/chat`
-   - Axum router receives and routes to chat handler
+   - Axum router receives and routes to ingress handler
 
 2. **Authentication Middleware**
    - Extract JWT from Authorization header

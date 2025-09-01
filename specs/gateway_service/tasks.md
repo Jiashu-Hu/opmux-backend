@@ -26,19 +26,19 @@ Based on the complete system design (requirements.md + design.md), this implemen
   - Add minimal configuration (server port) as required
   - _Requirement: Requirement 5 - Monitoring and Observability_
 
-- [ ] 3. Basic Chat Endpoint Structure (Core Business Logic)
+- [ ] 3. Basic Ingress Endpoint Structure (Core Business Logic)
   - Implement POST /api/v1/chat endpoint that accepts JSON
   - Create request/response models as needed
   - Add basic request validation and error responses
-  - Implement minimal service layer structure
+  - Implement minimal service layer structure using 3-layer architecture
   - _Requirement: Requirement 1 - Request Reception and Routing_
 
 ## Iteration 2: Authentication Integration
 
-- [ ] 4. JWT Authentication for Chat Endpoint
-  - Add JWT validation to existing chat endpoint
+- [ ] 4. JWT Authentication for Ingress Endpoint
+  - Add JWT validation to existing ingress endpoint
   - Implement basic JWT parsing and validation
-  - Add authentication middleware to protect chat endpoint
+  - Add authentication middleware to protect ingress endpoint
   - Create user context extraction from JWT claims
   - Add configuration for Supabase JWT validation as needed
   - _Requirement: Requirement 3 - Authentication and Authorization_
@@ -53,7 +53,7 @@ Based on the complete system design (requirements.md + design.md), this implemen
 ## Iteration 3: Service Integration
 
 - [ ] 6. Memory Service Integration
-  - Add gRPC client for Memory Service to chat flow
+  - Add gRPC client for Memory Service to ingress flow
   - Implement context retrieval before processing requests
   - Add service configuration and connection management
   - Handle service failures and implement basic retry logic
@@ -63,19 +63,19 @@ Based on the complete system design (requirements.md + design.md), this implemen
   - Add gRPC client for Router Service
   - Implement request routing with context data
   - Add response processing and cost tracking
-  - Integrate with existing chat endpoint flow
+  - Integrate with existing ingress endpoint flow
   - _Requirement: Requirement 2 - Microservice Coordination_
 
 - [ ] 8. Rewrite Service Integration (Conditional Logic)
   - Add gRPC client for Rewrite Service
   - Implement conditional routing based on metadata.rewrite flag
-  - Integrate rewrite logic into existing chat flow
+  - Integrate rewrite logic into existing ingress flow
   - Add rewrite-specific error handling
   - _Requirement: Requirement 2 - Microservice Coordination_
 
 - [ ] 9. Validation Service Integration (Optional)
   - Add gRPC client for Validation Service
-  - Implement request validation in chat flow
+  - Implement request validation in ingress flow
   - Add validation error handling and responses
   - Make validation optional based on configuration
   - _Requirement: Requirement 2 - Microservice Coordination_
