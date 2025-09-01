@@ -1,5 +1,7 @@
 // Repository Layer - gRPC client management & mocks
 
+use super::mockdata::MockDataProvider;
+
 // Data structures returned by repository (simulating gRPC responses)
 #[derive(Debug, Clone)]
 pub struct ContextData {
@@ -26,29 +28,18 @@ impl IngressRepository {
     // Mock Memory Service - retrieve conversation context
     pub async fn get_context(&self, _user_id: &str) -> Result<ContextData, String> {
         // Mock implementation - in real version this would be gRPC call to Memory Service
-        Ok(ContextData {
-            conversation_history: vec![
-                "Previous message 1".to_string(),
-                "Previous message 2".to_string(),
-            ],
-            user_preferences: "casual tone".to_string(),
-        })
+        Ok(MockDataProvider::get_mock_context())
     }
 
     // Mock Router Service - process request with context
     pub async fn route_request(
         &self,
-        _prompt: &str,
+        prompt: &str,
         _context: &ContextData,
         _metadata: &serde_json::Value,
     ) -> Result<RouterResponse, String> {
         // Mock implementation - in real version this would be gRPC call to Router Service
-        Ok(RouterResponse {
-            ai_response: "This is a mock AI response based on your prompt.".to_string(),
-            model_used: "gpt-4".to_string(),
-            cost: 0.002,
-            cache_hit: true,
-        })
+        Ok(MockDataProvider::get_mock_router_response(prompt))
     }
 
     // Mock Memory Service - store updated context

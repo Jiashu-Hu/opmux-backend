@@ -1,6 +1,9 @@
 // Service Layer - Business logic and orchestration
 
-use super::repository::IngressRepository;
+use super::{
+    constants::{AI_RESPONSE_ROLE, FINISH_REASON_STOP, REWRITE_PREFIX},
+    repository::IngressRepository,
+};
 use serde::{Deserialize, Serialize};
 
 // Request/Response models
@@ -73,8 +76,8 @@ impl IngressService {
         Ok(IngressResponse {
             response: AIResponse {
                 content: router_response.ai_response,
-                role: "assistant".to_string(),
-                finish_reason: Some("stop".to_string()),
+                role: AI_RESPONSE_ROLE.to_string(),
+                finish_reason: Some(FINISH_REASON_STOP.to_string()),
             },
             model_used: router_response.model_used,
             cost: router_response.cost,
@@ -94,8 +97,8 @@ impl IngressService {
 
         if needs_rewrite {
             // Future: call Rewrite Service via repository
-            // For now, just return the original prompt
-            Ok(format!("[Rewritten] {}", prompt))
+            // For now, just return the original prompt with rewrite prefix
+            Ok(format!("{} {}", REWRITE_PREFIX, prompt))
         } else {
             Ok(prompt.to_string())
         }
