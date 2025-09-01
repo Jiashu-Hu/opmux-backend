@@ -11,8 +11,15 @@ pub struct IngressRequest {
 }
 
 #[derive(Serialize)]
+pub struct AIResponse {
+    pub content: String,
+    pub role: String,                  // "assistant"
+    pub finish_reason: Option<String>, // "stop", "length", etc.
+}
+
+#[derive(Serialize)]
 pub struct IngressResponse {
-    pub response: String,
+    pub response: AIResponse,
     pub model_used: String,
     pub cost: f64,
     pub cache_hit: bool,
@@ -64,7 +71,11 @@ impl IngressService {
         let processing_time = start_time.elapsed().as_millis() as u64;
 
         Ok(IngressResponse {
-            response: router_response.ai_response,
+            response: AIResponse {
+                content: router_response.ai_response,
+                role: "assistant".to_string(),
+                finish_reason: Some("stop".to_string()),
+            },
             model_used: router_response.model_used,
             cost: router_response.cost,
             cache_hit: router_response.cache_hit,
