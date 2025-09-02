@@ -77,13 +77,18 @@ impl HealthService {
     ///
     /// # Examples
     ///
-    /// ```rust
-    /// let service = HealthService::new();
-    /// match service.check_health().await {
-    ///     Ok(response) => {
-    ///         println!("Health: {} at {}", response.status, response.timestamp);
-    ///     },
-    ///     Err(e) => eprintln!("Health check failed: {}", e),
+    /// ```rust,no_run
+    /// use gateway::features::health::service::HealthService;
+    ///
+    /// #[tokio::main]
+    /// async fn main() {
+    ///     let service = HealthService::new();
+    ///     match service.check_health().await {
+    ///         Ok(response) => {
+    ///             println!("Health: {} at {}", response.status, response.timestamp);
+    ///         },
+    ///         Err(e) => eprintln!("Health check failed: {}", e),
+    ///     }
     /// }
     /// ```
     pub async fn check_health(&self) -> Result<HealthResponse, HealthError> {

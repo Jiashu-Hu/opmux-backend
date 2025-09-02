@@ -61,11 +61,16 @@ impl HealthRepository {
     ///
     /// # Examples
     ///
-    /// ```rust
-    /// let repository = HealthRepository::new();
-    /// match repository.get_system_status().await {
-    ///     Ok(status) => println!("System is healthy: {}", status.is_healthy),
-    ///     Err(e) => eprintln!("Health check failed: {}", e),
+    /// ```rust,no_run
+    /// use gateway::features::health::repository::HealthRepository;
+    ///
+    /// #[tokio::main]
+    /// async fn main() {
+    ///     let repository = HealthRepository::new();
+    ///     match repository.get_system_status().await {
+    ///         Ok(status) => println!("System is healthy: {}", status.is_healthy),
+    ///         Err(e) => eprintln!("Health check failed: {}", e),
+    ///     }
     /// }
     /// ```
     pub async fn get_system_status(&self) -> Result<SystemStatus, HealthError> {
