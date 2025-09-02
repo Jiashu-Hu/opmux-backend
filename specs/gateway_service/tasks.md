@@ -12,21 +12,21 @@ Based on the complete system design (requirements.md + design.md), this implemen
 
 ## Iteration 1: Minimal Working Gateway
 
-- [ ] 1. Minimal Project Setup
+- [x] 1. Minimal Project Setup
   - Create basic Cargo.toml with essential dependencies only
   - Create src/main.rs with minimal "Hello World" server
   - Create src/lib.rs with basic module structure
   - Ensure project compiles and runs
   - _Requirement: Foundation for all other requirements_
 
-- [ ] 2. Basic Health Check Endpoint (First Working Feature)
+- [x] 2. Basic Health Check Endpoint (First Working Feature)
   - Implement simple /health endpoint that returns 200 OK
   - Create minimal Axum server setup in main.rs
   - Add basic error handling as needed for this endpoint
   - Add minimal configuration (server port) as required
   - _Requirement: Requirement 5 - Monitoring and Observability_
 
-- [ ] 3. Basic Ingress Endpoint Structure (Core Business Logic)
+- [x] 3. Basic Ingress Endpoint Structure (Core Business Logic)
   - Implement POST /api/v1/chat endpoint that accepts JSON
   - Create request/response models as needed
   - Add basic request validation and error responses
