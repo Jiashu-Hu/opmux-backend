@@ -82,3 +82,9 @@ impl HealthRepository {
         Ok(SystemStatus { is_healthy: true })
     }
 }
+
+impl Default for HealthRepository {
+    fn default() -> Self {
+        Self::new()
+    }
+}

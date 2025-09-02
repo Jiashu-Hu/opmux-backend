@@ -103,3 +103,9 @@ impl HealthService {
         })
     }
 }
+
+impl Default for HealthService {
+    fn default() -> Self {
+        Self::new()
+    }
+}

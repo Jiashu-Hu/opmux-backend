@@ -90,3 +90,9 @@ impl IngressRepository {
         Ok(())
     }
 }
+
+impl Default for IngressRepository {
+    fn default() -> Self {
+        Self::new()
+    }
+}

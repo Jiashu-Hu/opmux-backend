@@ -151,3 +151,9 @@ impl IngressService {
         }
     }
 }
+
+impl Default for IngressService {
+    fn default() -> Self {
+        Self::new()
+    }
+}
