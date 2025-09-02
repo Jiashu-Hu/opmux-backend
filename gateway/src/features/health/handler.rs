@@ -40,7 +40,8 @@ use axum::response::Json;
 /// ```bash
 /// curl http://localhost:3000/health
 /// ```
-pub async fn health_handler() -> Result<Json<super::service::HealthResponse>, HealthError> {
+pub async fn health_handler() -> Result<Json<super::service::HealthResponse>, HealthError>
+{
     let service = HealthService::new();
 
     match service.check_health().await {

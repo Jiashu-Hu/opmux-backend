@@ -52,7 +52,9 @@ impl HealthService {
     ///
     /// A new `HealthService` instance ready to perform health checks.
     pub fn new() -> Self {
-        Self { repository: HealthRepository::new() }
+        Self {
+            repository: HealthRepository::new(),
+        }
     }
 
     /// Performs a comprehensive health check of the system.
@@ -89,9 +91,15 @@ impl HealthService {
         let system_status = self.repository.get_system_status().await?;
 
         // Business logic: determine overall health
-        let status =
-            if system_status.is_healthy { "healthy".to_string() } else { "unhealthy".to_string() };
+        let status = if system_status.is_healthy {
+            "healthy".to_string()
+        } else {
+            "unhealthy".to_string()
+        };
 
-        Ok(HealthResponse { status, timestamp: chrono::Utc::now().to_rfc3339() })
+        Ok(HealthResponse {
+            status,
+            timestamp: chrono::Utc::now().to_rfc3339(),
+        })
     }
 }

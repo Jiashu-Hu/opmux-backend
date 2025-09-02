@@ -1,8 +1,2 @@
-max_width = 100
-use_small_heuristics = "Max"
-merge_derives = true
-use_field_init_shorthand = true
-fn_single_line = true
-format_strings = true
-imports_granularity = "Crate"
-group_imports = "StdExternalCrate"
+edition = "2021"
+max_width = 90

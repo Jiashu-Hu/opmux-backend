@@ -25,10 +25,11 @@ impl MockDataProvider {
                 "User: Hello, how are you?".to_string(),
                 "Assistant: I'm doing well, thank you for asking!".to_string(),
                 "User: Can you help me with a coding question?".to_string(),
-                "Assistant: Of course! I'd be happy to help with your coding question.".to_string(),
+                "Assistant: Of course! I'd be happy to help with your coding question."
+                    .to_string(),
             ],
-            user_preferences: "casual tone, detailed explanations, code examples preferred"
-                .to_string(),
+            user_preferences:
+                "casual tone, detailed explanations, code examples preferred".to_string(),
         }
     }
 
@@ -43,7 +44,10 @@ impl MockDataProvider {
     /// Mock router response with default cost and cache hit
     pub fn get_mock_router_response(prompt: &str) -> RouterResponse {
         let response_content = if prompt.contains("[Rewritten]") {
-            format!("This is a mock AI response to your rewritten prompt: '{}'", prompt)
+            format!(
+                "This is a mock AI response to your rewritten prompt: '{}'",
+                prompt
+            )
         } else {
             format!("This is a mock AI response to your prompt: '{}'", prompt)
         };
@@ -59,7 +63,10 @@ impl MockDataProvider {
     /// Returns mock AI response from Router Service with cache miss (higher cost).
     pub fn get_mock_router_response_cache_miss(prompt: &str) -> RouterResponse {
         RouterResponse {
-            ai_response: format!("This is a fresh AI response (cache miss) to: '{}'", prompt),
+            ai_response: format!(
+                "This is a fresh AI response (cache miss) to: '{}'",
+                prompt
+            ),
             model_used: "gpt-4".to_string(),
             cost: 0.005, // Higher cost for cache miss
             cache_hit: false,

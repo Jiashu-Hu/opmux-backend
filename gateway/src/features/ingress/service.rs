@@ -53,7 +53,9 @@ pub struct IngressService {
 impl IngressService {
     /// Creates a new ingress service instance.
     pub fn new() -> Self {
-        Self { repository: IngressRepository::new() }
+        Self {
+            repository: IngressRepository::new(),
+        }
     }
 
     /// Processes a chat request through the complete AI pipeline.
@@ -85,7 +87,9 @@ impl IngressService {
             .map_err(|_| IngressError::ContextRetrievalFailed)?;
 
         // Step 2: Check if rewrite is needed (based on metadata)
-        let processed_prompt = self.process_prompt(&request.prompt, &request.metadata).await?;
+        let processed_prompt = self
+            .process_prompt(&request.prompt, &request.metadata)
+            .await?;
 
         // Step 3: Route request to Router Service with context
         let router_response = self
@@ -133,7 +137,10 @@ impl IngressService {
         metadata: &serde_json::Value,
     ) -> Result<String, IngressError> {
         // Check if rewrite is requested in metadata
-        let needs_rewrite = metadata.get("rewrite").and_then(|v| v.as_bool()).unwrap_or(false);
+        let needs_rewrite = metadata
+            .get("rewrite")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
 
         if needs_rewrite {
             // Future: call Rewrite Service via repository

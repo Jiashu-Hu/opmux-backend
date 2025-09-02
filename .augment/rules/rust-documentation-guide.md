@@ -11,19 +11,19 @@
 
 ### 1. Module Documentation (`mod.rs`)
 
-```rust
+````rust
 //! Module purpose and overview.
-//! 
+//!
 //! Brief description of what this module does and its role in the system.
-//! 
+//!
 //! # Architecture
-//! 
+//!
 //! - **Layer 1** - Purpose and responsibility
 //! - **Layer 2** - Purpose and responsibility
 //! - **Layer 3** - Purpose and responsibility
-//! 
+//!
 //! # Usage
-//! 
+//!
 //! ```bash
 //! # Simple usage example
 //! curl -X POST http://localhost:3000/endpoint
@@ -31,13 +31,13 @@
 
 /// Brief description of submodule purpose.
 pub mod submodule;
-```
+````
 
 ### 2. Struct Documentation
 
 ```rust
 /// Brief struct purpose.
-/// 
+///
 /// Longer description if needed, explaining role in the system.
 /// Future plans or important notes.
 pub struct ServiceName {
@@ -50,19 +50,19 @@ pub struct ServiceName {
 
 ```rust
 /// Brief function purpose (what it does).
-/// 
+///
 /// # Flow (for complex functions)
 /// 1. Step one description
 /// 2. Step two description
 /// 3. Step three description
-/// 
+///
 /// # Parameters
 /// - `param1` - Purpose and what it represents
 /// - `param2` - Purpose and constraints
-/// 
+///
 /// # Returns
 /// What the function returns and its meaning
-/// 
+///
 /// # Errors (if applicable)
 /// When errors occur and what they mean
 pub async fn function_name(param1: Type, param2: Type) -> Result<ReturnType, ErrorType> {
@@ -72,7 +72,7 @@ pub async fn function_name(param1: Type, param2: Type) -> Result<ReturnType, Err
 
 ```rust
 /// Errors for [feature] operations.
-/// 
+///
 /// Each variant represents a specific business operation failure,
 /// providing clear context for debugging and monitoring.
 #[derive(Debug, thiserror::Error)]
@@ -127,17 +127,17 @@ impl IntoResponse for FeatureError {
 
 ```rust
 /// Processes chat request through the complete AI pipeline.
-/// 
+///
 /// # Flow
 /// 1. Retrieves conversation context from Memory Service
 /// 2. Processes prompt (applies rewrite if requested)
 /// 3. Routes to AI services via Router Service
 /// 4. Updates conversation context with new exchange
-/// 
+///
 /// # Parameters
 /// - `request` - Chat request with prompt and metadata
 /// - `user_id` - User identifier for context management
-/// 
+///
 /// # Returns
 /// Complete AI response with metadata (cost, model, processing time)
 pub async fn process_request(&self, request: IngressRequest, user_id: String) -> Result<IngressResponse, IngressError>
@@ -147,7 +147,7 @@ pub async fn process_request(&self, request: IngressRequest, user_id: String) ->
 
 ```rust
 /// This function processes a request
-/// 
+///
 /// This method takes an IngressRequest and a String representing the user ID,
 /// then it goes through several steps to process the request by calling various
 /// services and then returns an IngressResponse or an error if something goes wrong

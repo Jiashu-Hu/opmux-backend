@@ -27,7 +27,9 @@ pub async fn ingress_handler(
 ) -> Result<ResponseJson<IngressResponse>, IngressError> {
     // Basic request validation
     if request.prompt.trim().is_empty() {
-        return Err(IngressError::InvalidRequest("Prompt cannot be empty".to_string()));
+        return Err(IngressError::InvalidRequest(
+            "Prompt cannot be empty".to_string(),
+        ));
     }
 
     // Create service instance
