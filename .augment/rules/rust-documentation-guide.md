@@ -126,7 +126,7 @@ impl IntoResponse for FeatureError {
 ### Good Documentation ✅
 
 ```rust
-/// Processes chat request through the complete AI pipeline.
+/// Processes AI routing request through the complete AI pipeline.
 ///
 /// # Flow
 /// 1. Retrieves conversation context from Memory Service
@@ -135,7 +135,7 @@ impl IntoResponse for FeatureError {
 /// 4. Updates conversation context with new exchange
 ///
 /// # Parameters
-/// - `request` - Chat request with prompt and metadata
+/// - `request` - AI routing request with prompt and metadata
 /// - `user_id` - User identifier for context management
 ///
 /// # Returns

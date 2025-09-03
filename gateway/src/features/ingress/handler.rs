@@ -7,7 +7,7 @@ use super::{
 };
 use axum::{extract::Json, response::Json as ResponseJson};
 
-/// HTTP handler for chat ingress endpoint.
+/// HTTP handler for AI routing ingress endpoint.
 ///
 /// # Flow
 /// 1. Validates request (non-empty prompt)
@@ -16,7 +16,7 @@ use axum::{extract::Json, response::Json as ResponseJson};
 /// 4. Returns JSON response or error
 ///
 /// # Parameters
-/// - `request` - JSON chat request with prompt and metadata
+/// - `request` - JSON AI routing request with prompt and metadata
 ///
 /// # Returns
 /// JSON response with AI content, model info, cost, and timing

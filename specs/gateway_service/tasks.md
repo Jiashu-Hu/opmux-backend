@@ -27,7 +27,7 @@ Based on the complete system design (requirements.md + design.md), this implemen
   - _Requirement: Requirement 5 - Monitoring and Observability_
 
 - [x] 3. Basic Ingress Endpoint Structure (Core Business Logic)
-  - Implement POST /api/v1/chat endpoint that accepts JSON
+  - Implement POST /api/v1/route endpoint that accepts JSON
   - Create request/response models as needed
   - Add basic request validation and error responses
   - Implement minimal service layer structure using 3-layer architecture

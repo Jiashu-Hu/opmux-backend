@@ -126,7 +126,7 @@ gateway/
 ### Request Processing Flow
 
 1. **HTTP Request Reception**
-   - Client sends POST to `/api/v1/chat`
+   - Client sends POST to `/api/v1/route`
    - Axum router receives and routes to ingress handler
 
 2. **Authentication Middleware**

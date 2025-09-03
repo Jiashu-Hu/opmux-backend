@@ -4,7 +4,7 @@ use axum::{
 };
 use serde_json::json;
 
-/// Errors for ingress chat processing operations.
+/// Errors for ingress AI routing processing operations.
 ///
 /// Each variant represents a specific business operation failure,
 /// providing clear context for debugging and monitoring.

@@ -1,6 +1,6 @@
-//! Ingress module for chat request processing.
+//! Ingress module for AI routing request processing.
 //!
-//! Handles incoming chat requests and coordinates AI response generation
+//! Handles incoming AI routing requests and coordinates AI response generation
 //! through microservice orchestration. Follows 3-layer architecture with
 //! structured error handling.
 //!
@@ -13,7 +13,7 @@
 //! # Usage
 //!
 //! ```bash
-//! curl -X POST http://localhost:3000/api/v1/chat \
+//! curl -X POST http://localhost:3000/api/v1/route \
 //!   -H "Content-Type: application/json" \
 //!   -d '{"prompt": "Hello!", "metadata": {}}'
 //! ```

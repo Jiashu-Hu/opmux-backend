@@ -14,13 +14,13 @@ async fn main() {
     let app = Router::new()
         .route("/", get(hello_world))
         .route("/health", get(health::health_handler))
-        .route("/api/v1/chat", post(ingress::ingress_handler));
+        .route("/api/v1/route", post(ingress::ingress_handler));
 
     // Start the server
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
     tracing::info!("Gateway server running on http://0.0.0.0:3000");
     tracing::info!("Health check available at http://0.0.0.0:3000/health");
-    tracing::info!("Ingress endpoint available at http://0.0.0.0:3000/api/v1/chat");
+    tracing::info!("Ingress endpoint available at http://0.0.0.0:3000/api/v1/route");
 
     axum::serve(listener, app).await.unwrap();
 }

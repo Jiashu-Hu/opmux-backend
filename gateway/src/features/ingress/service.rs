@@ -7,10 +7,10 @@ use super::{
 };
 use serde::{Deserialize, Serialize};
 
-/// Incoming chat request from clients.
+/// Incoming AI routing request from clients.
 #[derive(Deserialize)]
 pub struct IngressRequest {
-    /// User's chat prompt/message.
+    /// User's prompt/message for AI processing.
     pub prompt: String,
     /// Additional request metadata (rewrite flags, preferences, etc.).
     pub metadata: serde_json::Value,
@@ -44,7 +44,7 @@ pub struct IngressResponse {
 
 /// Service for ingress request processing and microservice orchestration.
 ///
-/// Coordinates the entire chat request flow: context retrieval, prompt processing,
+/// Coordinates the entire AI routing request flow: context retrieval, prompt processing,
 /// AI routing, and response aggregation.
 pub struct IngressService {
     repository: IngressRepository,
@@ -58,7 +58,7 @@ impl IngressService {
         }
     }
 
-    /// Processes a chat request through the complete AI pipeline.
+    /// Processes an AI routing request through the complete AI pipeline.
     ///
     /// # Flow
     /// 1. Retrieves conversation context from Memory Service
@@ -67,7 +67,7 @@ impl IngressService {
     /// 4. Updates conversation context with new exchange
     ///
     /// # Parameters
-    /// - `request` - Chat request with prompt and metadata
+    /// - `request` - AI routing request with prompt and metadata
     /// - `user_id` - User identifier for context management
     ///
     /// # Returns
