@@ -91,12 +91,15 @@ gateway/
 │   │   ├── result.rs
 │   │   └── tracing.rs
 │   ├── features/               # Business-specific modules
-│   │   ├── auth/
-│   │   │   ├── mod.rs
-│   │   │   ├── handler.rs      # Authentication handlers
-│   │   │   ├── service.rs      # JWT validation logic
-│   │   │   ├── repository.rs   # Supabase integration
-│   │   │   └── models.rs       # Auth data structures
+│   │   ├── auth/               # Authentication feature (3-layer architecture)
+│   │   │   ├── mod.rs          # Module exports and wiring
+│   │   │   ├── handler.rs      # Handler Layer - HTTP request/response processing
+│   │   │   ├── service.rs      # Service Layer - Authentication business logic
+│   │   │   ├── repository.rs   # Repository Layer - Data access & mocks
+│   │   │   ├── models.rs       # Data models and structs
+│   │   │   ├── types.rs        # Type definitions and enums
+│   │   │   ├── constants.rs    # Constants and configuration
+│   │   │   └── error.rs        # Auth-specific error types
 │   │   ├── ingress/
 │   │   │   ├── mod.rs
 │   │   │   ├── handler.rs      # Ingress endpoint handlers
@@ -109,7 +112,7 @@ gateway/
 │   │       └── service.rs      # Health check logic
 │   ├── middleware/             # HTTP middleware
 │   │   ├── mod.rs
-│   │   ├── auth.rs            # Authentication middleware
+│   │   ├── auth.rs            # Unified authentication middleware
 │   │   ├── tracing.rs         # Request tracing
 │   │   └── metrics.rs         # Metrics collection
 │   └── grpc/                  # gRPC client abstractions
@@ -129,16 +132,18 @@ gateway/
    - Client sends POST to `/api/v1/route`
    - Axum router receives and routes to ingress handler
 
-2. **Authentication Middleware**
-   - Extract JWT from Authorization header
-   - Validate JWT signature against Supabase public keys
-   - Extract user claims and roles
-   - Inject user context into request
+2. **Unified Authentication Middleware**
+   - Detect authentication method (X-API-Key, Authorization header, etc.)
+   - Route to appropriate validator (API Key, JWT, or Service token)
+   - For API Key (Phase 1): Validate against database/cache, extract client context
+   - For JWT (Phase 2): Validate signature against Supabase public keys, extract user context
+   - For Service (Phase 3): Validate internal service tokens
+   - Inject appropriate auth context into request
 
 3. **Authorization Check**
-   - Verify user has required permissions
-   - Check rate limiting (future implementation)
-   - Log access attempt
+   - Verify client/user has required permissions based on context type
+   - Check rate limiting and quotas (future implementation)
+   - Log access attempt with client/user identification
 
 4. **Request Processing**
    - Parse request payload (prompt + metadata)
@@ -182,24 +187,54 @@ gateway/
 
 ## Security Design
 
-### JWT Validation
+### Multi-Method Authentication Security
+
+#### API Key Security (Phase 1 - Primary)
+
+- Store hashed API keys in database using SHA-256
+- Validate key format and length before processing
+- Implement rate limiting per API key
+- Audit logging for all key usage
+- Support for key rotation and revocation
+- Secure key generation with sufficient entropy
+
+#### JWT Validation (Phase 2 - Dashboard)
 
 - Validate signature using Supabase public keys
 - Check token expiration and not-before claims
 - Verify issuer matches Supabase project
 - Handle key rotation gracefully
+- Session management and logout support
 
-### API Key Management
+#### Internal Service Security (Phase 3)
 
-- Separate API keys for service-to-service communication
-- Store keys in environment variables
-- Implement key rotation support
+- Lightweight internal JWT tokens for service-to-service
+- Shared secret or internal PKI for validation
+- Service identity verification
+- Request correlation and audit trails
 
-### RBAC Implementation
+### Authorization and Access Control
 
-- Extract roles from JWT claims
-- Map roles to permissions
-- Endpoint-level authorization checks
+#### API Client Authorization
+
+- Client-level permissions based on subscription tier
+- Project-level access control
+- Rate limiting and quota enforcement
+- Usage tracking and billing integration
+
+#### Dashboard User Authorization
+
+- Role-based access control (RBAC)
+- Organization and project-level permissions
+- Fine-grained feature access control
+- Session-based authorization
+
+### Development Mode Security
+
+- Clear warnings when development mode is enabled
+- Environment-based controls (never enabled in production)
+- Mock contexts clearly identifiable in logs
+- Automatic security hardening in production environments
 
 ## Gateway Mediation Pattern
 

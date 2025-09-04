@@ -3,12 +3,13 @@
 ## Introduction
 
 Design and develop the Gateway Microservice for AI API Router, serving as the unified entry point
-for the system. The service is responsible for receiving user requests (prompt + metadata),
-coordinating other microservices, aggregating responses, and handling authentication via
-Supabase-provided JWT tokens. Supabase serves as the authentication provider and database layer for
-user management, while the Gateway focuses on request routing, service coordination, and
-authorization. The service needs to support core MVP functionality while reserving architectural
-space for future expansion.
+for the system. The service is responsible for receiving client requests (prompt + metadata),
+coordinating other microservices, aggregating responses, and handling authentication via a unified
+authentication system supporting multiple methods (API Keys for B2B clients, JWT tokens for
+dashboard users, and internal service tokens). Supabase serves as the database layer for
+authentication data and user management, while the Gateway focuses on request routing, service
+coordination, and multi-method authorization. The service needs to support core MVP functionality
+while reserving architectural space for future expansion.
 
 ## Requirements
 
@@ -48,25 +49,35 @@ microservices, ensuring requests are processed in the correct order and response
 5. When processing requests, the Gateway Service shall aggregate responses from multiple services
    into a unified response format.
 
-### Requirement 3 - Authentication and Authorization
+### Requirement 3 - Unified Authentication and Authorization
 
-**User Story:** As a system administrator, I want the Gateway to verify user identity using
-Supabase-provided JWT tokens and control access permissions with role-based authorization.
+**User Story:** As a system administrator, I want the Gateway to support multiple authentication
+methods for different client types (B2B API clients, dashboard users, internal services) with
+appropriate authorization controls for each.
 
 #### Acceptance Criteria
 
-1. When receiving requests with JWT token from Supabase, the Gateway Service shall validate token
-   signature, expiration, and issuer.
-2. When receiving requests with API Key, the Gateway Service shall validate the key against
-   configured API key store for service-to-service communication.
-3. When JWT validation fails, the Gateway Service shall return 401 Unauthorized with appropriate
+1. When receiving requests with API Key header (X-API-Key), the Gateway Service shall validate the
+   key against Supabase database and extract client context (client_id, organization_id,
+   project_id).
+2. When receiving requests with JWT token from Supabase (Authorization header), the Gateway Service
+   shall validate token signature, expiration, and issuer for dashboard users.
+3. When receiving requests with internal service tokens, the Gateway Service shall validate using
+   lightweight internal authentication for microservice communication.
+4. When authentication method detection fails, the Gateway Service shall return 400 Bad Request with
+   clear error message.
+5. When API key validation fails, the Gateway Service shall return 401 Unauthorized with minimal
+   security information.
+6. When JWT validation fails, the Gateway Service shall return 401 Unauthorized with appropriate
    error message.
-4. While processing authenticated requests, the Gateway Service shall extract user roles from
-   Supabase JWT claims and implement RBAC (admin, editor, viewer).
-5. When authorization fails, the Gateway Service shall return 403 Forbidden with role-specific error
-   message.
-6. When validating Supabase JWT, the Gateway Service shall verify against Supabase public keys and
-   handle key rotation.
+7. While processing authenticated requests, the Gateway Service shall inject appropriate context
+   (API client context, dashboard user context, or service context) for downstream handlers.
+8. When authorization fails, the Gateway Service shall return 403 Forbidden with context-appropriate
+   error message.
+9. When validating Supabase JWT, the Gateway Service shall verify against Supabase public keys and
+   handle key rotation gracefully.
+10. When in development mode, the Gateway Service shall support authentication bypass with mock
+    contexts for testing purposes.
 
 ### Requirement 4 - Configuration Management
 

@@ -35,20 +35,38 @@ Based on the complete system design (requirements.md + design.md), this implemen
 
 ## Iteration 2: Authentication Integration
 
-- [ ] 4. JWT Authentication for Ingress Endpoint
-  - Add JWT validation to existing ingress endpoint
-  - Implement basic JWT parsing and validation
-  - Add authentication middleware to protect ingress endpoint
-  - Create user context extraction from JWT claims
-  - Add configuration for Supabase JWT validation as needed
-  - _Requirement: Requirement 3 - Authentication and Authorization_
+- [ ] 4. Unified Authentication for Ingress Endpoint (Phase 1: API Key Focus)
+  - Implement unified authentication middleware supporting multiple methods
+  - Add API Key authentication as primary method for B2B clients
+  - Implement authentication method detection (X-API-Key, Authorization headers)
+  - Create client context extraction from API key validation
+  - Add development mode bypass for testing
+  - Prepare architecture for future JWT and service authentication
+  - _Requirement: Requirement 3 - Unified Authentication and Authorization_
 
-- [ ] 5. Supabase Integration
-  - Implement Supabase public key fetching for JWT validation
-  - Add proper error handling for authentication failures
-  - Implement basic RBAC based on JWT claims
-  - Add authentication configuration management
-  - _Requirement: Requirement 3 - Authentication and Authorization_
+- [ ] 5. Supabase Database Integration
+  - Implement Supabase database client for API key storage and validation
+  - Add secure API key hashing and storage mechanisms
+  - Implement caching layer for high-performance API key validation
+  - Add proper error handling for database connection failures
+  - Add authentication configuration management with environment variables
+  - _Requirement: Requirement 3 - Unified Authentication and Authorization_
+
+## Iteration 2.5: Authentication System Expansion (Future)
+
+- [ ] 5.1 JWT Authentication for Dashboard (Phase 2)
+  - Extend unified middleware to support JWT validation
+  - Implement Supabase public key fetching and caching
+  - Add dashboard user context extraction from JWT claims
+  - Implement session management and logout support
+  - _Requirement: Requirement 3 - Unified Authentication and Authorization_
+
+- [ ] 5.2 Internal Service Authentication (Phase 3)
+  - Add lightweight internal service token validation
+  - Implement service-to-service authentication
+  - Add service context extraction and request correlation
+  - Integrate with existing unified middleware
+  - _Requirement: Requirement 3 - Unified Authentication and Authorization_
 
 ## Iteration 3: Service Integration
 
