@@ -2,9 +2,9 @@
 
 use super::{
     error::IngressError,
-    mockdata::MockDataProvider,
     service::{IngressRequest, IngressResponse, IngressService},
 };
+use crate::middleware::auth::AuthContext;
 use axum::{extract::Json, response::Json as ResponseJson};
 
 /// HTTP handler for AI routing ingress endpoint.
@@ -21,8 +21,9 @@ use axum::{extract::Json, response::Json as ResponseJson};
 /// # Returns
 /// JSON response with AI content, model info, cost, and timing
 ///
-/// TODO: Extract user_id from JWT token in Authorization header.
+/// AuthContext is injected by authentication middleware.
 pub async fn ingress_handler(
+    auth_context: AuthContext,
     Json(request): Json<IngressRequest>,
 ) -> Result<ResponseJson<IngressResponse>, IngressError> {
     // Basic request validation
@@ -35,8 +36,8 @@ pub async fn ingress_handler(
     // Create service instance
     let service = IngressService::new();
 
-    // Use mock user_id from mockdata - in future this will be extracted from JWT token
-    let user_id = MockDataProvider::get_mock_user_id();
+    // Use client_id from authentication context
+    let user_id = auth_context.client_id;
 
     // Process the request through service layer
     match service.process_request(request, user_id).await {

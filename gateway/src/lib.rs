@@ -8,3 +8,6 @@ pub mod core;
 
 // Business-specific feature modules
 pub mod features;
+
+// HTTP middleware
+pub mod middleware;
