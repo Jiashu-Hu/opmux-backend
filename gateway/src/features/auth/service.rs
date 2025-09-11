@@ -14,12 +14,18 @@ pub struct AuthService {
     repository: MockAuthRepository,
 }
 
-impl AuthService {
-    /// Create new AuthService with default repository
-    pub fn new() -> Self {
+impl Default for AuthService {
+    fn default() -> Self {
         Self {
             repository: MockAuthRepository::new(),
         }
+    }
+}
+
+impl AuthService {
+    /// Create new AuthService with default repository
+    pub fn new() -> Self {
+        Self::default()
     }
 
     /// Validate API key and return AuthContext if valid
