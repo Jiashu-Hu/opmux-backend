@@ -5,66 +5,64 @@ value, then add supporting infrastructure organically as needed.
 
 ## Iteration 1: Protect Existing Endpoint (Immediate Business Value)
 
-### Task 1: Add Authentication to Ingress Endpoint
+### Task 1: Add Authentication to Ingress Endpoint ✅ COMPLETED
 
-- [ ] 1.1 Create minimal authentication middleware
-  - Create `src/middleware/auth.rs` with basic auth function
-  - Implement X-API-Key header extraction and validation
-  - Hardcode a test API key for validation (e.g., "test-api-key-123")
-  - Return 401 Unauthorized for missing/invalid keys
+- [x] 1.1 Create minimal authentication middleware
+  - ✅ Created `src/middleware/auth.rs` with basic auth function
+  - ✅ Implemented X-API-Key header extraction and validation
+  - ✅ Hardcoded test API key: "test-api-key-123"
+  - ✅ Returns 401 Unauthorized for missing/invalid keys
   - _Focus: Protect real business functionality immediately_
 
-- [ ] 1.2 Apply middleware to existing ingress endpoint
-  - Apply auth middleware to `/api/v1/route` endpoint in main.rs
-  - Create basic AuthContext struct with client_id
-  - Inject mock client context for valid API keys
+- [x] 1.2 Apply middleware to existing ingress endpoint
+  - ✅ Applied auth middleware to `/api/v1/route` endpoint in main.rs
+  - ✅ Created basic AuthContext struct with client_id
+  - ✅ Inject mock client context for valid API keys
   - _Deliverable: /api/v1/route endpoint now requires API key authentication_
 
-- [ ] 1.3 Test protected endpoint
-  - Test with valid API key: `curl -H "X-API-Key: test-api-key-123" /api/v1/route`
-  - Test without API key: should return 401 Unauthorized
-  - Verify existing ingress functionality still works with valid key
+- [x] 1.3 Test protected endpoint
+  - ✅ Tested with valid API key: `curl -H "X-API-Key: test-api-key-123" /api/v1/route` → 200 OK
+  - ✅ Tested without API key: returns 401 Unauthorized
+  - ✅ Verified existing ingress functionality still works with valid key
   - _Requirement: Requirement 1 - API Key Authentication_
 
-## Iteration 2: Add Database Persistence (Replace Hardcoded Data)
+## Iteration 2: Implement 3-Layer Architecture (Keep Mock Data)
 
-### Task 2: Implement 3-Layer Architecture with Real Data
+### Task 2: Create Auth Feature Module with 3-Layer Architecture ✅ COMPLETED
 
-- [ ] 2.1 Add minimal dependencies
-  - Add only required dependencies: supabase client, sha2 for hashing
-  - Avoid adding caching, uuid, or other dependencies until needed
-  - _Principle: Add dependencies when features require them_
+- [x] 2.1 Create auth feature module structure
+  - ✅ Created `src/features/auth/` directory
+  - ✅ Created `src/features/auth/mod.rs` with basic exports
+  - ✅ Created `src/features/auth/handler.rs` for HTTP endpoints (future use)
+  - ✅ Created `src/features/auth/service.rs` for business logic
+  - ✅ Created `src/features/auth/repository.rs` for data access (mock data)
+  - ✅ Created `src/features/auth/models.rs` for data structures
+  - ✅ Created `src/features/auth/mockdata.rs` for mock API keys
+  - _Build 3-layer architecture following existing pattern_
 
-- [ ] 2.2 Create auth feature module structure
-  - Create `src/features/auth/` directory
-  - Create `src/features/auth/mod.rs` with basic exports
-  - Create `src/features/auth/service.rs` for business logic
-  - Create `src/features/auth/repository.rs` for data access
-  - Create `src/features/auth/models.rs` for data structures
-  - _Build 3-layer architecture as needed_
+- [x] 2.2 Add data models
+  - ✅ Created ApiKeyInfo struct with necessary fields
+  - ✅ Moved AuthContext struct from middleware to models.rs
+  - ✅ Added Axum FromRequestParts implementation
+  - _Follow same pattern as ingress models_
 
-- [ ] 2.3 Create service layer
-  - Move hardcoded validation logic from middleware to service
-  - Implement AuthService with validate_api_key method
+- [x] 2.3 Create mock repository
+  - ✅ Implemented MockAuthRepository with hardcoded API keys
+  - ✅ Implemented find_api_key_by_hash method with mock data
+  - ✅ Added AuthRepository trait with async methods
+  - _Deliverable: Structured mock data access_
+
+- [x] 2.4 Create service layer
+  - ✅ Moved hardcoded validation logic from middleware to AuthService
+  - ✅ Implemented AuthService with validate_api_key method
+  - ✅ Uses repository for data access
   - _Deliverable: Same functionality, better architecture_
 
-- [ ] 2.4 Add database repository
-  - Implement Supabase connection for API key storage
-  - Create api_keys table schema in Supabase
-  - Store hashed API keys (SHA-256)
-  - Implement find_api_key_by_hash method
-  - _Deliverable: Persistent API key storage_
-
-- [ ] 2.5 Add data models
-  - Create ApiKeyInfo struct with necessary fields
-  - Create AuthContext struct for request context
-  - Add only models that are actually used
-  - _Requirement: Requirement 5 - Database Integration_
-
-- [ ] 2.6 Update middleware to use service
-  - Refactor middleware to use AuthService for validation
-  - Maintain same API behavior
-  - _Deliverable: Database-backed authentication_
+- [x] 2.5 Update middleware to use service
+  - ✅ Refactored middleware to use AuthService for validation
+  - ✅ Maintained same API behavior
+  - ✅ Removed hardcoded logic from middleware
+  - _Deliverable: Clean separation of concerns_
 
 ## Iteration 3: Add Development Mode and Error Handling (Production Readiness)
 
@@ -111,28 +109,42 @@ value, then add supporting infrastructure organically as needed.
   - Add repository tests with mock data
   - _Test based on actual implementation_
 
-## Future Iterations: API Key Management and Extended Authentication
+## Future Iterations: Database Integration and Extended Authentication
 
-### Iteration 5: API Key Management (Future - Client Self-Service)
+### Iteration 5: Database Integration (Future - Replace Mock Data)
 
-- [ ] 5.1 Add API key management endpoints
-  - Create `src/features/auth/handler.rs` for HTTP endpoints
+- [ ] 5.1 Add database dependencies
+  - Add supabase client and sha2 for hashing
+  - Add uuid for key generation
+  - _Add dependencies when ready for real data_
+
+- [ ] 5.2 Implement database repository
+  - Replace MockAuthRepository with DatabaseAuthRepository
+  - Implement Supabase connection for API key storage
+  - Create api_keys table schema in Supabase
+  - Store hashed API keys (SHA-256)
+  - _Requirement: Requirement 5 - Database Integration_
+
+### Iteration 6: API Key Management (Future - Client Self-Service)
+
+- [ ] 6.1 Add API key management endpoints
+  - Implement handler.rs for HTTP endpoints
   - Add POST `/api/v1/auth/keys` (create API key)
   - Add GET `/api/v1/auth/keys` (list API keys)
   - Add DELETE `/api/v1/auth/keys/{id}` (revoke API key)
   - _Enable client self-service API key management_
 
-### Iteration 6: JWT Authentication (Phase 2)
+### Iteration 7: JWT Authentication (Phase 2)
 
-- [ ] 6.1 Add JWT support for dashboard users
+- [ ] 7.1 Add JWT support for dashboard users
   - Extend middleware to detect JWT tokens
   - Add JWT validation service
   - Integrate with existing unified middleware
   - _Requirement: Requirement 8 - Future Extensibility_
 
-### Iteration 7: Internal Service Authentication (Phase 3)
+### Iteration 8: Internal Service Authentication (Phase 3)
 
-- [ ] 7.1 Add lightweight service-to-service authentication
+- [ ] 8.1 Add lightweight service-to-service authentication
   - Implement internal service tokens
   - Add service context extraction
   - _Requirement: Requirement 8 - Future Extensibility_

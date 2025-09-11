@@ -4,7 +4,7 @@ use super::{
     error::IngressError,
     service::{IngressRequest, IngressResponse, IngressService},
 };
-use crate::middleware::auth::AuthContext;
+use crate::features::auth::AuthContext;
 use axum::{extract::Json, response::Json as ResponseJson};
 
 /// HTTP handler for AI routing ingress endpoint.
