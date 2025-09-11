@@ -55,9 +55,4 @@ impl MockAuthDataProvider {
 
         keys
     }
-
-    /// Get mock client context for a given client_id
-    pub fn get_mock_client_id() -> String {
-        "test-client-456".to_string()
-    }
 }

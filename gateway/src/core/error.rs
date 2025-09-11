@@ -1,12 +1,15 @@
 use axum::response::{IntoResponse, Response};
 // Import feature error modules
-use crate::features::{health, ingress};
+use crate::features::{auth, health, ingress};
 
 /// The single, top-level error type for the entire application.
 #[derive(Debug, thiserror::Error)]
 pub enum AppError {
     // Add feature errors here using #[from].
     // The `transparent` attribute passes the Display implementation up.
+    #[error(transparent)]
+    Auth(#[from] auth::error::AuthError),
+
     #[error(transparent)]
     Health(#[from] health::error::HealthError),
 
@@ -22,6 +25,7 @@ impl IntoResponse for AppError {
 
         // Delegate response generation to the underlying feature error.
         match self {
+            AppError::Auth(e) => e.into_response(),
             AppError::Health(e) => e.into_response(),
             AppError::Ingress(e) => e.into_response(),
         }

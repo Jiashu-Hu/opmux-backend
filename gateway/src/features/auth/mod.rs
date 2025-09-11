@@ -6,10 +6,12 @@
 //! - Repository Layer: Data access with mock implementation
 
 // Export public interfaces
+pub use error::AuthError;
 pub use models::*;
 pub use service::AuthService;
 
 // Internal modules
+pub mod error;
 mod mockdata;
 mod models;
 mod repository;

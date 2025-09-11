@@ -30,7 +30,7 @@ impl AuthService {
 
         // Check if key is active
         if !api_key_info.is_active {
-            println!("Authentication failed: API key is inactive: {}", api_key);
+            tracing::warn!("Authentication failed: API key is inactive: {}", api_key);
             return None;
         }
 
@@ -39,7 +39,7 @@ impl AuthService {
         tokio::spawn(async move {
             let repo = create_auth_repository();
             if let Err(e) = repo.update_last_used(&key_id).await {
-                println!("Warning: Failed to update last_used timestamp: {}", e);
+                tracing::warn!("Failed to update last_used timestamp: {:?}", e);
             }
         });
 
@@ -53,10 +53,4 @@ impl AuthService {
     pub async fn get_api_key_info(&self, key_hash: &str) -> Option<ApiKeyInfo> {
         self.repository.find_api_key_by_hash(key_hash).await
     }
-}
-
-/// Default service instance
-/// Convenience function for creating service with default repository
-pub fn create_auth_service() -> AuthService {
-    AuthService::new()
 }

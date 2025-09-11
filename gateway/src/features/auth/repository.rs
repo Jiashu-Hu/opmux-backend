@@ -3,7 +3,7 @@
 //! Handles all data operations for authentication system
 //! Currently uses mock data, can be replaced with database implementation later
 
-use super::{mockdata::MockAuthDataProvider, models::ApiKeyInfo};
+use super::{error::AuthError, mockdata::MockAuthDataProvider, models::ApiKeyInfo};
 
 /// Authentication repository trait
 /// Defines interface for data access operations
@@ -13,7 +13,7 @@ pub trait AuthRepository {
     async fn find_api_key_by_hash(&self, key_hash: &str) -> Option<ApiKeyInfo>;
 
     /// Update last used timestamp for an API key
-    async fn update_last_used(&self, key_id: &str) -> Result<(), String>;
+    async fn update_last_used(&self, key_id: &str) -> Result<(), AuthError>;
 }
 
 /// Mock implementation of AuthRepository
@@ -37,12 +37,12 @@ impl AuthRepository for MockAuthRepository {
     }
 
     /// Mock implementation of updating last used timestamp
-    async fn update_last_used(&self, key_id: &str) -> Result<(), String> {
+    async fn update_last_used(&self, key_id: &str) -> Result<(), AuthError> {
         // Simulate async database update
         tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
 
         // In mock implementation, we just log the operation
-        println!("Mock: Updated last_used for API key: {}", key_id);
+        tracing::debug!("Mock: Updated last_used for API key: {}", key_id);
         Ok(())
     }
 }

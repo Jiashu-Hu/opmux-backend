@@ -22,7 +22,7 @@ pub async fn auth_middleware(
     let api_key = match extract_api_key(headers) {
         Some(key) => key,
         None => {
-            println!("Authentication failed: Missing X-API-Key header");
+            tracing::warn!("Authentication failed: Missing X-API-Key header");
             return Err(StatusCode::UNAUTHORIZED);
         }
     };
@@ -31,7 +31,7 @@ pub async fn auth_middleware(
     let auth_context = match validate_api_key(&api_key).await {
         Some(context) => context,
         None => {
-            println!("Authentication failed: Invalid API key: {}", api_key);
+            tracing::warn!("Authentication failed: Invalid API key: {}", api_key);
             return Err(StatusCode::UNAUTHORIZED);
         }
     };
