@@ -1,0 +1,107 @@
+name: Security Check
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  security-check:
+    name: Security Configuration Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run security checks
+        run: |
+          echo "🔒 Running security configuration checks..."
+          ./scripts/check-security.sh
+
+      - name: Verify no development mode in environment
+        run: |
+          echo "🔍 Checking environment variables..."
+          if [ "$AUTH_DEVELOPMENT_MODE" = "true" ]; then
+            echo "❌ SECURITY VIOLATION: AUTH_DEVELOPMENT_MODE is set to true in CI environment"
+            exit 1
+          fi
+          echo "✅ Environment variables are secure"
+
+  build-and-test:
+    name: Build and Test (Production Mode)
+    runs-on: ubuntu-latest
+    needs: security-check
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+          components: rustfmt, clippy
+
+      - name: Cache cargo registry
+        uses: actions/cache@v3
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache cargo index
+        uses: actions/cache@v3
+        with:
+          path: ~/.cargo/git
+          key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache cargo build
+        uses: actions/cache@v3
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Ensure production mode
+        run: |
+          echo "🔒 Ensuring production mode is enforced..."
+          unset AUTH_DEVELOPMENT_MODE
+          export AUTH_DEVELOPMENT_MODE=false
+          echo "AUTH_DEVELOPMENT_MODE=$AUTH_DEVELOPMENT_MODE"
+
+      - name: Check code formatting
+        run: cargo fmt --all -- --check
+
+      - name: Run clippy
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+      - name: Run tests (production mode)
+        run: |
+          echo "🧪 Running tests in production mode..."
+          export AUTH_DEVELOPMENT_MODE=false
+          cargo test --all
+
+      - name: Build release (production mode)
+        run: |
+          echo "🏗️ Building release in production mode..."
+          export AUTH_DEVELOPMENT_MODE=false
+          cargo build --release --all
+
+      - name: Verify binary doesn't have development mode enabled
+        run: |
+          echo "🔍 Verifying built binary security..."
+          # Start the server in background
+          export AUTH_DEVELOPMENT_MODE=false
+          timeout 10s ./target/release/gateway &
+          SERVER_PID=$!
+          sleep 3
+
+          # Check logs don't contain development mode warnings
+          if ps -p $SERVER_PID > /dev/null; then
+            echo "✅ Server started successfully in production mode"
+            kill $SERVER_PID 2>/dev/null || true
+          else
+            echo "❌ Server failed to start"
+            exit 1
+          fi

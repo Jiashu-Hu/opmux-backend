@@ -68,23 +68,33 @@ value, then add supporting infrastructure organically as needed.
 
 ### Task 3: Add Development Support and Error Handling
 
-- [ ] 3.1 Add development mode bypass
-  - Add AUTH_DEVELOPMENT_MODE environment variable
-  - Allow bypassing auth in development
-  - Inject mock context when in dev mode
-  - Add clear warnings when dev mode is enabled
+- [x] 3.1 Add development mode bypass ✅ COMPLETED
+  - ✅ Added AUTH_DEVELOPMENT_MODE environment variable
+  - ✅ Allow bypassing auth in development (no API key required)
+  - ✅ Inject mock context when in dev mode (configurable client ID)
+  - ✅ Added clear warnings when dev mode is enabled (🚨 emojis for visibility)
+  - ✅ Added AUTH_DEV_CLIENT_ID environment variable for custom dev client ID
+  - ✅ Updated middleware to check development mode before authentication
+  - ✅ Updated main.rs to show development mode status in startup logs
   - _Requirement: Requirement 4 - Development Environment Support_
 
-- [ ] 3.2 Add error handling as needed
-  - Add `src/features/auth/error.rs` with errors encountered during development
-  - Implement only error types that are actually needed
-  - Add proper error responses for authentication failures
+- [x] 3.2 Add error handling as needed ✅ COMPLETED
+  - ✅ Added `src/features/auth/error.rs` with AuthError enum
+  - ✅ Implemented only error types that are actually needed (ApiKeyValidationFailed,
+    ApiKeyInactive, RepositoryOperationFailed)
+  - ✅ Added proper error responses for authentication failures
+  - ✅ Integrated AuthError into AppError with proper HTTP response mapping
+  - ✅ Replaced println! with structured tracing logs
+  - ✅ Updated repository to use Result<(), AuthError> instead of Result<(), String>
   - _Principle: Add error handling when errors occur, not preemptively_
   - _Requirement: Requirement 7 - Layered Error Handling_
 
-- [ ] 3.3 Add basic configuration management
-  - Create `src/features/auth/config.rs`
-  - Add environment variable support for discovered configuration needs
+- [x] 3.3 Add basic configuration management ✅ COMPLETED
+  - ✅ Created `src/features/auth/config.rs` (completed in Task 3.1)
+  - ✅ Added environment variable support (AUTH_DEVELOPMENT_MODE, AUTH_DEV_CLIENT_ID)
+  - ✅ Implemented thread-safe global configuration with OnceLock
+  - ✅ Added configuration validation and security warnings
+  - ✅ Following "add only what's needed" principle - no unnecessary config added
   - _Add only configuration that is actually needed by this point_
 
 ## Iteration 4: Production Optimizations (Performance and Monitoring)

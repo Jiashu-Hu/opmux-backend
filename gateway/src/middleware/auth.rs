@@ -1,7 +1,7 @@
 // Authentication middleware - protects endpoints with API key validation
 // Now uses the 3-layer architecture from features/auth
 
-use crate::features::auth::{AuthContext, AuthService};
+use crate::features::auth::{get_auth_config, AuthContext, AuthService};
 use axum::{
     extract::Request,
     http::{HeaderMap, StatusCode},
@@ -11,11 +11,23 @@ use axum::{
 
 /// Authentication middleware function
 /// Validates X-API-Key header and injects AuthContext into request
+/// Supports development mode bypass via AUTH_DEVELOPMENT_MODE environment variable
 pub async fn auth_middleware(
     mut request: Request,
     next: Next,
 ) -> Result<Response, StatusCode> {
-    // Extract headers
+    let config = get_auth_config();
+
+    // Check if development mode is enabled
+    if config.is_development_mode() {
+        // Development mode: bypass authentication and inject mock context
+        let auth_service = AuthService::new();
+        let dev_context = auth_service.create_dev_context();
+        request.extensions_mut().insert(dev_context);
+        return Ok(next.run(request).await);
+    }
+
+    // Production mode: require API key authentication
     let headers = request.headers();
 
     // Get API key from X-API-Key header

@@ -5,7 +5,7 @@ use axum::{
     Router,
 };
 use gateway::{
-    features::{health, ingress},
+    features::{auth::get_auth_config, health, ingress},
     middleware::auth,
 };
 
@@ -13,6 +13,9 @@ use gateway::{
 async fn main() {
     // Initialize tracing for structured logging
     tracing_subscriber::fmt::init();
+
+    // Initialize authentication configuration (logs warnings if dev mode enabled)
+    let config = get_auth_config();
 
     // Create protected routes that require authentication
     let protected_routes = Router::new()
@@ -34,9 +37,15 @@ async fn main() {
     tracing::info!(
         "Protected ingress endpoint available at http://0.0.0.0:3000/api/v1/route"
     );
-    tracing::info!(
-        "Authentication required: X-API-Key header with value 'test-api-key-123'"
-    );
+
+    if config.is_development_mode() {
+        tracing::info!("🚨 Development mode: Authentication is BYPASSED");
+        tracing::info!("🚨 No API key required for testing");
+    } else {
+        tracing::info!(
+            "Authentication required: X-API-Key header with value 'test-api-key-123'"
+        );
+    }
 
     axum::serve(listener, app).await.unwrap();
 }

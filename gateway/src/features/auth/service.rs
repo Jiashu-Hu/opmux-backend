@@ -4,6 +4,7 @@
 //! This is where the validation logic from middleware/auth.rs is moved to
 
 use super::{
+    config::get_auth_config,
     models::{ApiKeyInfo, AuthContext},
     repository::{create_auth_repository, AuthRepository, MockAuthRepository},
 };
@@ -53,6 +54,18 @@ impl AuthService {
         Some(AuthContext {
             client_id: api_key_info.client_id,
         })
+    }
+
+    /// Create development mode context
+    /// Used when AUTH_DEVELOPMENT_MODE is enabled
+    pub fn create_dev_context(&self) -> AuthContext {
+        let config = get_auth_config();
+        tracing::warn!("🚨 Using development mode authentication bypass");
+        tracing::warn!("🚨 Mock client ID: {}", config.get_dev_client_id());
+
+        AuthContext {
+            client_id: config.get_dev_client_id().to_string(),
+        }
     }
 
     /// Get API key information (for future API key management endpoints)
