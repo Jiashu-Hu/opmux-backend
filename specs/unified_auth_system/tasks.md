@@ -101,23 +101,25 @@ value, then add supporting infrastructure organically as needed.
 
 ### Task 4: Add Production Support Features
 
-- [ ] 4.1 Add performance optimizations
-  - Add moka dependency for caching
-  - Implement API key validation caching
-  - Add performance monitoring
-  - _Add caching now that we know the performance bottlenecks_
+- [ ] 4.1 Add basic performance monitoring
+  - Add authentication timing metrics using tracing
+  - Record API key validation duration
+  - Add performance logging for slow operations
+  - _Focus: Monitor current performance, no premature optimization_
+  - _Skip: Service instance caching, moka dependency - not needed with current mock data_
 
-- [ ] 4.2 Add comprehensive error handling
-  - Expand error types based on real errors encountered
-  - Add proper error logging and monitoring
-  - Implement error recovery strategies
-  - _Now we know what errors actually occur in practice_
+- [ ] 4.2 Add comprehensive testing
+  - Add unit tests for service layer (AuthService::validate_api_key)
+  - Add integration tests for middleware (auth_middleware)
+  - Add repository tests with mock data (MockAuthRepository)
+  - Add error handling tests (AuthError scenarios)
+  - _Test based on actual implementation, ensure reliability_
 
-- [ ] 4.3 Add comprehensive testing
-  - Add unit tests for service layer
-  - Add integration tests for middleware
-  - Add repository tests with mock data
-  - _Test based on actual implementation_
+- [ ] 4.3 Skip comprehensive error handling expansion
+  - Current error handling is sufficient for current needs
+  - AuthError enum covers all actual error scenarios
+  - Following "add only when needed" principle
+  - _Will revisit when new error scenarios are encountered in practice_
 
 ## Future Iterations: Database Integration and Extended Authentication
 
