@@ -21,6 +21,18 @@ A Rust backend project for Opmux.
    npm install
    ```
 
+## How to Run Locally
+
+Start the gateway service and hit the health endpoint:
+
+```bash
+cargo run -p gateway
+# in another terminal
+curl http://localhost:3000/health
+```
+
+Optional: copy `.env.example` to `.env` for local overrides. For more commands and contributor rules, see AGENTS.md.
+
 ### Code Formatting
 
 This project uses both Rust's built-in formatter and Prettier for different file types:

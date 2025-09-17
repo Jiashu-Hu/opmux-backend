@@ -12,10 +12,12 @@ use axum::{
 /// Authentication middleware function
 /// Validates X-API-Key header and injects AuthContext into request
 /// Supports development mode bypass via AUTH_DEVELOPMENT_MODE environment variable
+#[tracing::instrument(level = "debug", skip(request, next))]
 pub async fn auth_middleware(
     mut request: Request,
     next: Next,
 ) -> Result<Response, StatusCode> {
+    let start = std::time::Instant::now();
     let config = get_auth_config();
 
     // Check if development mode is enabled
@@ -24,7 +26,19 @@ pub async fn auth_middleware(
         let auth_service = AuthService::new();
         let dev_context = auth_service.create_dev_context();
         request.extensions_mut().insert(dev_context);
-        return Ok(next.run(request).await);
+
+        let response = next.run(request).await;
+
+        // Log performance metrics for development mode
+        let duration = start.elapsed();
+        tracing::info!(
+            duration_ms = duration.as_millis(),
+            mode = "development",
+            success = true,
+            "Authentication completed (development mode bypass)"
+        );
+
+        return Ok(response);
     }
 
     // Production mode: require API key authentication
@@ -43,7 +57,13 @@ pub async fn auth_middleware(
     let auth_context = match validate_api_key(&api_key).await {
         Some(context) => context,
         None => {
-            tracing::warn!("Authentication failed: Invalid API key: {}", api_key);
+            let duration = start.elapsed();
+            tracing::warn!(
+                duration_ms = duration.as_millis(),
+                mode = "production",
+                success = false,
+                "Authentication failed: Invalid API key"
+            );
             return Err(StatusCode::UNAUTHORIZED);
         }
     };
@@ -52,7 +72,30 @@ pub async fn auth_middleware(
     request.extensions_mut().insert(auth_context);
 
     // Continue to next handler
-    Ok(next.run(request).await)
+    let response = next.run(request).await;
+
+    // Log performance metrics for successful authentication
+    let duration = start.elapsed();
+    let is_slow = duration.as_millis() > config.get_slow_threshold_ms() as u128;
+
+    if is_slow {
+        tracing::warn!(
+            duration_ms = duration.as_millis(),
+            mode = "production",
+            success = true,
+            threshold_ms = config.get_slow_threshold_ms(),
+            "Slow authentication detected"
+        );
+    } else {
+        tracing::info!(
+            duration_ms = duration.as_millis(),
+            mode = "production",
+            success = true,
+            "Authentication completed"
+        );
+    }
+
+    Ok(response)
 }
 
 /// Extract API key from X-API-Key header

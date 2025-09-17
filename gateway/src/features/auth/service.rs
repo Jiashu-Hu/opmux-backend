@@ -31,29 +31,70 @@ impl AuthService {
 
     /// Validate API key and return AuthContext if valid
     /// This replaces the hardcoded validation logic from middleware
+    #[tracing::instrument(level = "debug", skip(self))]
     pub async fn validate_api_key(&self, api_key: &str) -> Option<AuthContext> {
+        let start = std::time::Instant::now();
         // Look up API key in repository
-        let api_key_info = self.repository.find_api_key_by_hash(api_key).await?;
+        let api_key_info = self.repository.find_api_key_by_hash(api_key).await;
 
-        // Check if key is active
-        if !api_key_info.is_active {
-            tracing::warn!("Authentication failed: API key is inactive: {}", api_key);
-            return None;
-        }
+        let duration = start.elapsed();
+        let config = get_auth_config();
 
-        // Update last used timestamp (fire and forget)
-        let key_id = api_key_info.id.clone();
-        tokio::spawn(async move {
-            let repo = create_auth_repository();
-            if let Err(e) = repo.update_last_used(&key_id).await {
-                tracing::warn!("Failed to update last_used timestamp: {:?}", e);
+        match api_key_info {
+            Some(info) => {
+                // Check if key is active
+                if !info.is_active {
+                    tracing::debug!(
+                        duration_ms = duration.as_millis(),
+                        success = false,
+                        reason = "inactive_key",
+                        "API key validation failed: key is inactive"
+                    );
+                    return None;
+                }
+
+                // Update last used timestamp (fire and forget)
+                let key_id = info.id.clone();
+                tokio::spawn(async move {
+                    let repo = create_auth_repository();
+                    if let Err(e) = repo.update_last_used(&key_id).await {
+                        tracing::warn!("Failed to update last_used timestamp: {:?}", e);
+                    }
+                });
+
+                // Log successful validation
+                let is_slow =
+                    duration.as_millis() > config.get_slow_threshold_ms() as u128;
+                if is_slow {
+                    tracing::warn!(
+                        duration_ms = duration.as_millis(),
+                        success = true,
+                        threshold_ms = config.get_slow_threshold_ms(),
+                        "Slow API key validation detected"
+                    );
+                } else {
+                    tracing::debug!(
+                        duration_ms = duration.as_millis(),
+                        success = true,
+                        "API key validation completed"
+                    );
+                }
+
+                // Return authentication context
+                Some(AuthContext {
+                    client_id: info.client_id,
+                })
             }
-        });
-
-        // Return authentication context
-        Some(AuthContext {
-            client_id: api_key_info.client_id,
-        })
+            None => {
+                tracing::debug!(
+                    duration_ms = duration.as_millis(),
+                    success = false,
+                    reason = "key_not_found",
+                    "API key validation failed: key not found"
+                );
+                None
+            }
+        }
     }
 
     /// Create development mode context
