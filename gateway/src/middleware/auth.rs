@@ -112,3 +112,105 @@ async fn validate_api_key(api_key: &str) -> Option<AuthContext> {
     let auth_service = AuthService::new();
     auth_service.validate_api_key(api_key).await
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::body::Body;
+    use axum::http::{HeaderMap, Request as HttpRequest};
+
+    #[test]
+    fn extract_api_key_none_when_missing() {
+        let headers = HeaderMap::new();
+        assert!(extract_api_key(&headers).is_none());
+    }
+
+    #[test]
+    fn extract_api_key_some_when_present() {
+        let mut headers = HeaderMap::new();
+        headers.insert("X-API-Key", "abc123".parse().unwrap());
+        let key = extract_api_key(&headers);
+        assert_eq!(key.as_deref(), Some("abc123"));
+    }
+
+    #[tokio::test]
+    async fn validate_api_key_none_when_invalid() {
+        let ctx = super::validate_api_key("not-a-real-key").await;
+        assert!(ctx.is_none());
+    }
+
+    #[tokio::test]
+    async fn validate_api_key_some_when_valid() {
+        let ctx = super::validate_api_key("test-api-key-123").await;
+        assert!(ctx.is_some());
+
+        // Also verify that building a typical request compiles cleanly
+        let _req: HttpRequest<Body> = HttpRequest::builder()
+            .uri("/api/v1/route")
+            .header("X-API-Key", "test-api-key-123")
+            .body(Body::empty())
+            .unwrap();
+    }
+    // --- E2E tests using Router::oneshot (requires dev-dep tower) ---
+    use axum::{routing::get, Router};
+    use tower::ServiceExt; // for `oneshot`
+
+    async fn test_handler(req: Request) -> Response {
+        let has_ctx = req.extensions().get::<AuthContext>().is_some();
+        if has_ctx {
+            axum::http::Response::builder()
+                .status(StatusCode::OK)
+                .body(Body::empty())
+                .unwrap()
+        } else {
+            axum::http::Response::builder()
+                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                .body(Body::empty())
+                .unwrap()
+        }
+    }
+
+    fn build_app() -> Router {
+        Router::new()
+            .route("/ping", get(test_handler))
+            .layer(axum::middleware::from_fn(auth_middleware))
+    }
+
+    #[tokio::test]
+    async fn e2e_missing_api_key_returns_401() {
+        let app = build_app();
+        let req = HttpRequest::builder()
+            .method("GET")
+            .uri("/ping")
+            .body(Body::empty())
+            .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn e2e_invalid_api_key_returns_401() {
+        let app = build_app();
+        let req = HttpRequest::builder()
+            .method("GET")
+            .uri("/ping")
+            .header("X-API-Key", "invalid-key")
+            .body(Body::empty())
+            .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn e2e_valid_api_key_returns_200_and_context_present() {
+        let app = build_app();
+        let req = HttpRequest::builder()
+            .method("GET")
+            .uri("/ping")
+            .header("X-API-Key", "test-api-key-123")
+            .body(Body::empty())
+            .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+}

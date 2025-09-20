@@ -31,7 +31,8 @@ cargo run -p gateway
 curl http://localhost:3000/health
 ```
 
-Optional: copy `.env.example` to `.env` for local overrides. For more commands and contributor rules, see AGENTS.md.
+Optional: copy `.env.example` to `.env` for local overrides. For more commands and contributor
+rules, see AGENTS.md.
 
 ### Code Formatting
 

@@ -8,6 +8,7 @@ value, then add supporting infrastructure organically as needed.
 ### Task 1: Add Authentication to Ingress Endpoint ✅ COMPLETED
 
 - [x] 1.1 Create minimal authentication middleware
+
   - ✅ Created `src/middleware/auth.rs` with basic auth function
   - ✅ Implemented X-API-Key header extraction and validation
   - ✅ Hardcoded test API key: "test-api-key-123"
@@ -15,6 +16,7 @@ value, then add supporting infrastructure organically as needed.
   - _Focus: Protect real business functionality immediately_
 
 - [x] 1.2 Apply middleware to existing ingress endpoint
+
   - ✅ Applied auth middleware to `/api/v1/route` endpoint in main.rs
   - ✅ Created basic AuthContext struct with client_id
   - ✅ Inject mock client context for valid API keys
@@ -31,6 +33,7 @@ value, then add supporting infrastructure organically as needed.
 ### Task 2: Create Auth Feature Module with 3-Layer Architecture ✅ COMPLETED
 
 - [x] 2.1 Create auth feature module structure
+
   - ✅ Created `src/features/auth/` directory
   - ✅ Created `src/features/auth/mod.rs` with basic exports
   - ✅ Created `src/features/auth/handler.rs` for HTTP endpoints (future use)
@@ -41,18 +44,21 @@ value, then add supporting infrastructure organically as needed.
   - _Build 3-layer architecture following existing pattern_
 
 - [x] 2.2 Add data models
+
   - ✅ Created ApiKeyInfo struct with necessary fields
   - ✅ Moved AuthContext struct from middleware to models.rs
   - ✅ Added Axum FromRequestParts implementation
   - _Follow same pattern as ingress models_
 
 - [x] 2.3 Create mock repository
+
   - ✅ Implemented MockAuthRepository with hardcoded API keys
   - ✅ Implemented find_api_key_by_hash method with mock data
   - ✅ Added AuthRepository trait with async methods
   - _Deliverable: Structured mock data access_
 
 - [x] 2.4 Create service layer
+
   - ✅ Moved hardcoded validation logic from middleware to AuthService
   - ✅ Implemented AuthService with validate_api_key method
   - ✅ Uses repository for data access
@@ -69,6 +75,7 @@ value, then add supporting infrastructure organically as needed.
 ### Task 3: Add Development Support and Error Handling
 
 - [x] 3.1 Add development mode bypass ✅ COMPLETED
+
   - ✅ Added AUTH_DEVELOPMENT_MODE environment variable
   - ✅ Allow bypassing auth in development (no API key required)
   - ✅ Inject mock context when in dev mode (configurable client ID)
@@ -79,6 +86,7 @@ value, then add supporting infrastructure organically as needed.
   - _Requirement: Requirement 4 - Development Environment Support_
 
 - [x] 3.2 Add error handling as needed ✅ COMPLETED
+
   - ✅ Added `src/features/auth/error.rs` with AuthError enum
   - ✅ Implemented only error types that are actually needed (ApiKeyValidationFailed,
     ApiKeyInactive, RepositoryOperationFailed)
@@ -101,18 +109,23 @@ value, then add supporting infrastructure organically as needed.
 
 ### Task 4: Add Production Support Features
 
-- [ ] 4.1 Add basic performance monitoring
-  - Add authentication timing metrics using tracing
-  - Record API key validation duration
-  - Add performance logging for slow operations
+- [x] 4.1 Add basic performance monitoring
+
+  - ✅ Added authentication timing metrics using tracing (middleware, service, repository)
+  - ✅ Recorded API key validation duration and success/failure reasons
+  - ✅ Added slow-operation warnings with configurable threshold via AUTH_SLOW_THRESHOLD_MS (default
+    10ms)
+  - ✅ Updated .env.example with AUTH_SLOW_THRESHOLD_MS
   - _Focus: Monitor current performance, no premature optimization_
   - _Skip: Service instance caching, moka dependency - not needed with current mock data_
 
-- [ ] 4.2 Add comprehensive testing
-  - Add unit tests for service layer (AuthService::validate_api_key)
-  - Add integration tests for middleware (auth_middleware)
-  - Add repository tests with mock data (MockAuthRepository)
-  - Add error handling tests (AuthError scenarios)
+- [x] 4.2 Add comprehensive testing
+
+  - [x] Unit tests for service layer (AuthService::validate_api_key)
+  - [x] Repository tests with mock data (MockAuthRepository)
+  - [x] Middleware helper tests (extract_api_key, validate flow) - no extra deps
+  - [x] Middleware end-to-end tests (Router::oneshot via tower::ServiceExt)
+  - [x] Error handling tests (AuthError IntoResponse mappings)
   - _Test based on actual implementation, ensure reliability_
 
 - [ ] 4.3 Skip comprehensive error handling expansion
@@ -126,6 +139,7 @@ value, then add supporting infrastructure organically as needed.
 ### Iteration 5: Database Integration (Future - Replace Mock Data)
 
 - [ ] 5.1 Add database dependencies
+
   - Add supabase client and sha2 for hashing
   - Add uuid for key generation
   - _Add dependencies when ready for real data_

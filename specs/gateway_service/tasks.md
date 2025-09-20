@@ -13,6 +13,7 @@ Based on the complete system design (requirements.md + design.md), this implemen
 ## Iteration 1: Minimal Working Gateway
 
 - [x] 1. Minimal Project Setup
+
   - Create basic Cargo.toml with essential dependencies only
   - Create src/main.rs with minimal "Hello World" server
   - Create src/lib.rs with basic module structure
@@ -20,6 +21,7 @@ Based on the complete system design (requirements.md + design.md), this implemen
   - _Requirement: Foundation for all other requirements_
 
 - [x] 2. Basic Health Check Endpoint (First Working Feature)
+
   - Implement simple /health endpoint that returns 200 OK
   - Create minimal Axum server setup in main.rs
   - Add basic error handling as needed for this endpoint
@@ -36,6 +38,7 @@ Based on the complete system design (requirements.md + design.md), this implemen
 ## Iteration 2: Authentication Integration
 
 - [ ] 4. Unified Authentication for Ingress Endpoint (Phase 1: API Key Focus)
+
   - Implement unified authentication middleware supporting multiple methods
   - Add API Key authentication as primary method for B2B clients
   - Implement authentication method detection (X-API-Key, Authorization headers)
@@ -55,6 +58,7 @@ Based on the complete system design (requirements.md + design.md), this implemen
 ## Iteration 2.5: Authentication System Expansion (Future)
 
 - [ ] 5.1 JWT Authentication for Dashboard (Phase 2)
+
   - Extend unified middleware to support JWT validation
   - Implement Supabase public key fetching and caching
   - Add dashboard user context extraction from JWT claims
@@ -71,6 +75,7 @@ Based on the complete system design (requirements.md + design.md), this implemen
 ## Iteration 3: Service Integration
 
 - [ ] 6. Memory Service Integration
+
   - Add gRPC client for Memory Service to ingress flow
   - Implement context retrieval before processing requests
   - Add service configuration and connection management
@@ -78,6 +83,7 @@ Based on the complete system design (requirements.md + design.md), this implemen
   - _Requirement: Requirement 2 - Microservice Coordination_
 
 - [ ] 7. Router Service Integration
+
   - Add gRPC client for Router Service
   - Implement request routing with context data
   - Add response processing and cost tracking
@@ -85,6 +91,7 @@ Based on the complete system design (requirements.md + design.md), this implemen
   - _Requirement: Requirement 2 - Microservice Coordination_
 
 - [ ] 8. Rewrite Service Integration (Conditional Logic)
+
   - Add gRPC client for Rewrite Service
   - Implement conditional routing based on metadata.rewrite flag
   - Integrate rewrite logic into existing ingress flow
@@ -101,6 +108,7 @@ Based on the complete system design (requirements.md + design.md), this implemen
 ## Iteration 4: Production Readiness
 
 - [ ] 10. Enhanced Observability
+
   - Add structured logging with correlation IDs to existing endpoints
   - Implement Prometheus metrics collection
   - Add distributed tracing for service calls
@@ -108,6 +116,7 @@ Based on the complete system design (requirements.md + design.md), this implemen
   - _Requirement: Requirement 5 - Monitoring and Observability_
 
 - [ ] 11. Error Handling and Resilience
+
   - Implement circuit breaker patterns for service calls
   - Add comprehensive error handling and recovery
   - Implement graceful degradation strategies
@@ -124,6 +133,7 @@ Based on the complete system design (requirements.md + design.md), this implemen
 ## Iteration 5: Testing and Documentation
 
 - [ ] 13. Testing Suite
+
   - Add unit tests for implemented functionality
   - Create integration tests for end-to-end flows
   - Add performance and load testing

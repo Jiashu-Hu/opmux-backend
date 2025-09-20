@@ -16,6 +16,7 @@ type: 'manual'
 
 - **Incremental Development Approach**: Use incremental principles when planning implementation
   tasks
+
   - Start with core business logic that delivers immediate value
   - Add supporting infrastructure (configuration, error handling, logging) as required by business
     features
@@ -31,12 +32,14 @@ type: 'manual'
 ### Code Implementation Standards
 
 - **Architecture Compliance**: Maintain strict engineering standards throughout development
+
   - Follow 3-layer architecture (Handler/Service/Repository) consistently
   - Use existing modules and crates, avoid reinventing the wheel
   - Write clean, maintainable code while prioritizing working functionality
   - Ensure proper separation of concerns and dependency injection
 
 - **Development Planning**: Plan development in working iterations, not complete systems upfront
+
   - Identify the minimal working version of each feature
   - Plan how each iteration builds naturally on the previous one
   - Focus on delivering working functionality that can be tested and demonstrated

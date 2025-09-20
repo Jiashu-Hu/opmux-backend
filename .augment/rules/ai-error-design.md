@@ -22,6 +22,7 @@ Our error handling has two distinct layers: the **Feature Layer** and the **Core
 
 - **Feature-Level Errors**: Each feature (e.g., `ingress`, `auth`) has its own error enum that is
   specific to its domain.
+
   - Location: `src/features/your_feature/error.rs`
   - Example: `pub enum YourFeatureError { ... }`
 

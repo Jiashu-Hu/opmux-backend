@@ -74,3 +74,33 @@ impl AuthRepository for MockAuthRepository {
 pub fn create_auth_repository() -> impl AuthRepository {
     MockAuthRepository::new()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn find_api_key_by_hash_returns_some_for_known_key() {
+        let repo = MockAuthRepository::new();
+        let result = repo.find_api_key_by_hash("test-api-key-123").await;
+        assert!(result.is_some());
+        let info = result.unwrap();
+        assert_eq!(info.id, "key_001");
+        assert_eq!(info.client_id, "test-client-456");
+        assert!(info.is_active);
+    }
+
+    #[tokio::test]
+    async fn find_api_key_by_hash_returns_none_for_unknown_key() {
+        let repo = MockAuthRepository::new();
+        let result = repo.find_api_key_by_hash("does-not-exist").await;
+        assert!(result.is_none());
+    }
+
+    #[tokio::test]
+    async fn update_last_used_returns_ok() {
+        let repo = MockAuthRepository::new();
+        let res = repo.update_last_used("key_001").await;
+        assert!(res.is_ok());
+    }
+}

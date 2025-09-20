@@ -114,3 +114,24 @@ impl AuthService {
         self.repository.find_api_key_by_hash(key_hash).await
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn validate_api_key_returns_context_for_valid_key() {
+        let svc = AuthService::new();
+        let ctx = svc.validate_api_key("test-api-key-123").await;
+        assert!(ctx.is_some());
+        let ctx = ctx.unwrap();
+        assert_eq!(ctx.client_id, "test-client-456");
+    }
+
+    #[tokio::test]
+    async fn validate_api_key_returns_none_for_invalid_key() {
+        let svc = AuthService::new();
+        let ctx = svc.validate_api_key("non-existent-key").await;
+        assert!(ctx.is_none());
+    }
+}
