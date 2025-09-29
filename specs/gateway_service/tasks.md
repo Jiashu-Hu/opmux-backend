@@ -37,17 +37,17 @@ Based on the complete system design (requirements.md + design.md), this implemen
 
 ## Iteration 2: Authentication Integration
 
-- [ ] 4. Unified Authentication for Ingress Endpoint (Phase 1: API Key Focus)
+- [x] 4. Unified Authentication for Ingress Endpoint (Phase 1: API Key Focus)
 
-  - Implement unified authentication middleware supporting multiple methods
-  - Add API Key authentication as primary method for B2B clients
-  - Implement authentication method detection (X-API-Key, Authorization headers)
-  - Create client context extraction from API key validation
-  - Add development mode bypass for testing
-  - Prepare architecture for future JWT and service authentication
+  - ✅ Implemented unified authentication middleware (Axum middleware)
+  - ✅ Added API Key authentication via X-API-Key for B2B clients
+  - ✅ Created client context extraction from API key validation
+  - ✅ Added development mode bypass for testing (configurable client ID)
+  - ⏸️ Authorization header detection (Bearer ...) — deferred
+  - ⏸️ JWT and service auth supported by architecture but not enabled yet
   - _Requirement: Requirement 3 - Unified Authentication and Authorization_
 
-- [ ] 5. Supabase Database Integration
+- [ ] 5. Supabase Database Integration (Deferred until pre-launch)
   - Implement Supabase database client for API key storage and validation
   - Add secure API key hashing and storage mechanisms
   - Implement caching layer for high-performance API key validation
@@ -57,7 +57,7 @@ Based on the complete system design (requirements.md + design.md), this implemen
 
 ## Iteration 2.5: Authentication System Expansion (Future)
 
-- [ ] 5.1 JWT Authentication for Dashboard (Phase 2)
+- [ ] 5.1 JWT Authentication for Dashboard (Deferred until pre-launch)
 
   - Extend unified middleware to support JWT validation
   - Implement Supabase public key fetching and caching
@@ -65,7 +65,7 @@ Based on the complete system design (requirements.md + design.md), this implemen
   - Implement session management and logout support
   - _Requirement: Requirement 3 - Unified Authentication and Authorization_
 
-- [ ] 5.2 Internal Service Authentication (Phase 3)
+- [ ] 5.2 Internal Service Authentication (Deferred until pre-launch)
   - Add lightweight internal service token validation
   - Implement service-to-service authentication
   - Add service context extraction and request correlation
@@ -74,7 +74,7 @@ Based on the complete system design (requirements.md + design.md), this implemen
 
 ## Iteration 3: Service Integration
 
-- [ ] 6. Memory Service Integration
+- [ ] 6. Memory Service Integration (Deferred until post-MVP)
 
   - Add gRPC client for Memory Service to ingress flow
   - Implement context retrieval before processing requests

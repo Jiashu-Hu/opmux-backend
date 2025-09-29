@@ -128,13 +128,13 @@ value, then add supporting infrastructure organically as needed.
   - [x] Error handling tests (AuthError IntoResponse mappings)
   - _Test based on actual implementation, ensure reliability_
 
-- [ ] 4.3 Skip comprehensive error handling expansion
+- [x] 4.3 Skip comprehensive error handling expansion
   - Current error handling is sufficient for current needs
   - AuthError enum covers all actual error scenarios
   - Following "add only when needed" principle
   - _Will revisit when new error scenarios are encountered in practice_
 
-## Future Iterations: Database Integration and Extended Authentication
+## Future Iterations (Deferred until pre-launch): Database Integration and Extended Authentication
 
 ### Iteration 5: Database Integration (Future - Replace Mock Data)
 
