@@ -1,5 +1,8 @@
 //! Authentication Configuration
 //!
+//! **DEPRECATED**: This module is kept for backward compatibility.
+//! New code should use `gateway::core::config::get_config().auth` instead.
+//!
 //! Handles environment variable configuration for authentication system
 //! Following organic development principles - add configuration as needed
 
@@ -81,19 +84,11 @@ impl AuthConfig {
     }
 }
 
-use std::sync::OnceLock;
-
-/// Global configuration instance
-static CONFIG: OnceLock<AuthConfig> = OnceLock::new();
-
 /// Get global authentication configuration
-/// Initializes from environment variables on first call
-pub fn get_auth_config() -> &'static AuthConfig {
-    CONFIG.get_or_init(|| {
-        let config = AuthConfig::from_env();
-        config.log_warnings();
-        config
-    })
+/// **DEPRECATED**: Use `gateway::core::config::get_config().auth` instead
+/// This function is kept for backward compatibility
+pub fn get_auth_config() -> &'static crate::core::config::AuthConfig {
+    &crate::core::config::get_config().auth
 }
 
 #[cfg(test)]

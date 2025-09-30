@@ -5,7 +5,8 @@ use axum::{
     Router,
 };
 use gateway::{
-    features::{auth::get_auth_config, health, ingress},
+    core::config::get_config,
+    features::{health, ingress},
     middleware::auth,
 };
 
@@ -14,8 +15,8 @@ async fn main() {
     // Initialize tracing for structured logging
     tracing_subscriber::fmt::init();
 
-    // Initialize authentication configuration (logs warnings if dev mode enabled)
-    let config = get_auth_config();
+    // Initialize configuration (logs all settings including warnings)
+    let config = get_config();
 
     // Create protected routes that require authentication
     let protected_routes = Router::new()
@@ -31,14 +32,17 @@ async fn main() {
     let app = Router::new().merge(protected_routes).merge(public_routes);
 
     // Start the server
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
-    tracing::info!("Gateway server running on http://0.0.0.0:3000");
-    tracing::info!("Health check available at http://0.0.0.0:3000/health");
+    let listener = tokio::net::TcpListener::bind(config.server.bind_address)
+        .await
+        .unwrap();
+    tracing::info!("Gateway server running on http://{}", config.server.bind_address);
+    tracing::info!("Health check available at http://{}/health", config.server.bind_address);
     tracing::info!(
-        "Protected ingress endpoint available at http://0.0.0.0:3000/api/v1/route"
+        "Protected ingress endpoint available at http://{}/api/v1/route",
+        config.server.bind_address
     );
 
-    if config.is_development_mode() {
+    if config.auth.development_mode {
         tracing::info!("🚨 Development mode: Authentication is BYPASSED");
         tracing::info!("🚨 No API key required for testing");
     } else {
