@@ -156,13 +156,12 @@ message OptimizationConstraints {
 message RoutePlan {
   string vendor_id = 1;     // Vendor identifier: "openai", "anthropic", "cohere"
   string model_id = 2;      // Model identifier: "gpt-4", "claude-3-opus"
-  string endpoint_url = 3;  // Execution endpoint URL (optional, Executor may already know)
 
   // Execution parameters (temperature, max_tokens, etc., passed to LLM)
-  google.protobuf.Struct execution_params = 4;
+  google.protobuf.Struct execution_params = 3;
 
   // Fallback strategy chain (try sequentially if primary fails)
-  repeated RoutePlan fallback_plans = 5;
+  repeated RoutePlan fallback_plans = 4;
 }
 
 message OptimizeRouteResponse {
