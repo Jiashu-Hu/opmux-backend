@@ -172,18 +172,13 @@ message OptimizeRouteResponse {
   // --- Core business output ---
   RoutePlan optimized_plan = 3;  // Optimized best routing strategy
 
-  // Cache handling (RouteOptimizer checks cache)
-  bool cache_hit = 4;            // Whether cache was hit
-  string cached_response = 5;    // If cache_hit=true, full cached content here
-  string cache_key = 6;          // Cache key (for Gateway to store new results)
-
   // Cost and performance estimates
-  opmux.common.v1.Cost estimated_cost = 7;
-  int32 estimated_latency_ms = 8;  // Estimated latency (milliseconds)
+  opmux.common.v1.Cost estimated_cost = 4;
+  int32 estimated_latency_ms = 5;  // Estimated latency (milliseconds)
 
   // Observability information
-  string optimization_reason = 9;  // Why this strategy was chosen (for debugging/monitoring)
-  bool needs_rewrite = 10;         // Whether RewriteService should be called first
+  string optimization_reason = 6;  // Why this strategy was chosen (for debugging/monitoring)
+  bool needs_rewrite = 7;         // Whether RewriteService should be called first
 }
 ```
 
@@ -193,16 +188,11 @@ RouteOptimizerService is only responsible for "strategy decisions", not executin
 
 ```
 Client → Gateway → RouteOptimizerService: Request strategy
-                 ← Returns RoutePlan or cached_response
+                 ← Returns RoutePlan
 
-If cache_hit == true:
-  Gateway directly returns cached_response to Client
-
-If cache_hit == false:
-  Gateway → Executor Layer: Call actual LLM based on RoutePlan
-          ← Returns LLM response
-  Gateway → Cache: Store response (using cache_key)
-  Gateway → Client: Return response
+Gateway → Executor Layer: Call actual LLM based on RoutePlan
+        ← Returns LLM response
+Gateway → Client: Return response
 ```
 
 Executor Layer is an internal module within Gateway (not a gRPC service), responsible for:

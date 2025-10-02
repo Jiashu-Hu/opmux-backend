@@ -19,7 +19,7 @@ use std::net::SocketAddr;
 use std::sync::OnceLock;
 
 /// Global application configuration
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Config {
     /// Server configuration
     pub server: ServerConfig,
@@ -106,16 +106,6 @@ pub struct ServiceConfig {
     pub request_timeout_ms: u64,
 }
 
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            server: ServerConfig::default(),
-            auth: AuthConfig::default(),
-            logging: LoggingConfig::default(),
-            services: ServiceConfig::default(),
-        }
-    }
-}
 
 impl Default for ServerConfig {
     fn default() -> Self {
