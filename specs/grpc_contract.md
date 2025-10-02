@@ -140,16 +140,6 @@ message OptimizeRouteRequest {
   // NOTE: This field is reserved for future MemoryService integration.
   // In V1 implementation, the server will ignore this field's content.
   map<string, string> context = 3;
-
-  // Optimization constraints (optional, for intelligent routing decisions)
-  OptimizationConstraints constraints = 4;
-}
-
-// Optimization constraint conditions
-message OptimizationConstraints {
-  double max_cost_usd = 1;                // Maximum acceptable cost
-  int32 max_latency_ms = 2;               // Maximum acceptable latency
-  repeated string preferred_vendors = 3;  // Preferred vendor list
 }
 
 // Routing execution plan (for Gateway's Executor layer)
@@ -157,11 +147,8 @@ message RoutePlan {
   string vendor_id = 1;     // Vendor identifier: "openai", "anthropic", "cohere"
   string model_id = 2;      // Model identifier: "gpt-4", "claude-3-opus"
 
-  // Execution parameters (temperature, max_tokens, etc., passed to LLM)
-  google.protobuf.Struct execution_params = 3;
-
   // Fallback strategy chain (try sequentially if primary fails)
-  repeated RoutePlan fallback_plans = 4;
+  repeated RoutePlan fallback_plans = 3;
 }
 
 message OptimizeRouteResponse {
