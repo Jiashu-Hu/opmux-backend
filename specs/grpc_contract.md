@@ -158,11 +158,8 @@ message OptimizeRouteResponse {
   // --- Core business output ---
   RoutePlan optimized_plan = 3;  // Optimized best routing strategy
 
-  // Cost estimate
-  opmux.common.v1.Cost estimated_cost = 4;
-
   // Observability information
-  string optimization_reason = 5;  // Why this strategy was chosen (for debugging/monitoring)
+  string optimization_reason = 4;  // Why this strategy was chosen (for debugging/monitoring)
 }
 ```
 
