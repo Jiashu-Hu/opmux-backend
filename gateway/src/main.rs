@@ -35,8 +35,14 @@ async fn main() {
     let listener = tokio::net::TcpListener::bind(config.server.bind_address)
         .await
         .unwrap();
-    tracing::info!("Gateway server running on http://{}", config.server.bind_address);
-    tracing::info!("Health check available at http://{}/health", config.server.bind_address);
+    tracing::info!(
+        "Gateway server running on http://{}",
+        config.server.bind_address
+    );
+    tracing::info!(
+        "Health check available at http://{}/health",
+        config.server.bind_address
+    );
     tracing::info!(
         "Protected ingress endpoint available at http://{}/api/v1/route",
         config.server.bind_address

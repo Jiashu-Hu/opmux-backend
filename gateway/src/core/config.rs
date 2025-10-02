@@ -106,7 +106,6 @@ pub struct ServiceConfig {
     pub request_timeout_ms: u64,
 }
 
-
 impl Default for ServerConfig {
     fn default() -> Self {
         Self {
@@ -163,10 +162,7 @@ impl Config {
     pub fn validate(&self) {
         // Log server config
         tracing::info!("Server will bind to: {}", self.server.bind_address);
-        tracing::info!(
-            "Shutdown timeout: {}s",
-            self.server.shutdown_timeout_secs
-        );
+        tracing::info!("Shutdown timeout: {}s", self.server.shutdown_timeout_secs);
 
         // Log auth config with security warnings
         if self.auth.development_mode {
@@ -252,20 +248,14 @@ impl LoggingConfig {
 
 impl ServiceConfig {
     fn from_env() -> Self {
-        let router_url =
-            env::var("ROUTER_SERVICE_URL").unwrap_or_else(|_| {
-                "http://localhost:50051".to_string()
-            });
+        let router_url = env::var("ROUTER_SERVICE_URL")
+            .unwrap_or_else(|_| "http://localhost:50051".to_string());
 
-        let memory_url =
-            env::var("MEMORY_SERVICE_URL").unwrap_or_else(|_| {
-                "http://localhost:50052".to_string()
-            });
+        let memory_url = env::var("MEMORY_SERVICE_URL")
+            .unwrap_or_else(|_| "http://localhost:50052".to_string());
 
-        let rewrite_url =
-            env::var("REWRITE_SERVICE_URL").unwrap_or_else(|_| {
-                "http://localhost:50053".to_string()
-            });
+        let rewrite_url = env::var("REWRITE_SERVICE_URL")
+            .unwrap_or_else(|_| "http://localhost:50053".to_string());
 
         let validation_url = env::var("VALIDATION_SERVICE_URL")
             .unwrap_or_else(|_| "http://localhost:50054".to_string());
@@ -311,10 +301,7 @@ mod tests {
     #[test]
     fn test_default_config() {
         let config = Config::default();
-        assert_eq!(
-            config.server.bind_address.to_string(),
-            "0.0.0.0:3000"
-        );
+        assert_eq!(config.server.bind_address.to_string(), "0.0.0.0:3000");
         assert!(!config.auth.development_mode);
         assert_eq!(config.logging.level, "info");
         assert!(!config.logging.json_format);

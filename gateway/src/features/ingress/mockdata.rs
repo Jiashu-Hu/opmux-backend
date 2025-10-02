@@ -2,7 +2,9 @@
 // This file centralizes all mock data used during development
 // In production, this will be replaced with real service responses
 
-use super::repository::{ContextData, RouterResponse};
+use super::repository::{
+    ContextData, LLMExecutionResult, RoutePlan, RouterServiceResponse,
+};
 
 /// Mock data provider for development and testing.
 ///
@@ -33,56 +35,45 @@ impl MockDataProvider {
         }
     }
 
-    /// Returns mock AI response from Router Service with cache hit.
-    ///
-    /// Generates response based on prompt content, detects rewrite prefix.
-    ///
-    /// # Parameters
-    /// - `prompt` - User prompt (may include rewrite prefix)
+    /// Returns mock Router Service response (simple).
     ///
     /// # Returns
-    /// Mock router response with default cost and cache hit
-    pub fn get_mock_router_response(prompt: &str) -> RouterResponse {
-        let response_content = if prompt.contains("[Rewritten]") {
-            format!(
-                "This is a mock AI response to your rewritten prompt: '{}'",
-                prompt
-            )
-        } else {
-            format!("This is a mock AI response to your prompt: '{}'", prompt)
-        };
-
-        RouterResponse {
-            ai_response: response_content,
-            model_used: "gpt-4".to_string(),
-            cost: 0.002,
-            cache_hit: true,
+    /// Mock routing strategy with gpt-4 as default choice
+    pub fn get_mock_router_response() -> RouterServiceResponse {
+        RouterServiceResponse {
+            optimized_plan: RoutePlan {
+                vendor_id: "openai".to_string(),
+                model_id: "gpt-4".to_string(),
+                fallback_plans: vec![], // Empty in MVP
+            },
+            optimization_reason: "Selected gpt-4 for best quality".to_string(),
         }
     }
 
-    /// Returns mock AI response from Router Service with cache miss (higher cost).
-    pub fn get_mock_router_response_cache_miss(prompt: &str) -> RouterResponse {
-        RouterResponse {
-            ai_response: format!(
-                "This is a fresh AI response (cache miss) to: '{}'",
-                prompt
-            ),
-            model_used: "gpt-4".to_string(),
-            cost: 0.005, // Higher cost for cache miss
-            cache_hit: false,
-        }
-    }
+    /// Returns mock LLM execution result (simple).
+    ///
+    /// # Parameters
+    /// - `plan` - Routing plan from Router Service
+    /// - `payload` - Request payload
+    ///
+    /// # Returns
+    /// Mock LLM execution result with fixed cost
+    pub fn get_mock_llm_execution(
+        plan: &RoutePlan,
+        payload: &serde_json::Value,
+    ) -> LLMExecutionResult {
+        let prompt = payload
+            .get("prompt")
+            .and_then(|v| v.as_str())
+            .unwrap_or("default prompt");
 
-    /// Returns mock AI response using premium model (highest cost).
-    pub fn get_mock_router_response_expensive(prompt: &str) -> RouterResponse {
-        RouterResponse {
+        LLMExecutionResult {
             ai_response: format!(
-                "This is a premium AI response using advanced model: '{}'",
-                prompt
+                "This is a mock AI response for: '{}' using model: {}",
+                prompt, plan.model_id
             ),
-            model_used: "gpt-4-turbo".to_string(),
-            cost: 0.010,
-            cache_hit: false,
+            model_used: plan.model_id.clone(),
+            actual_cost: 0.025, // Simple fixed value
         }
     }
 }

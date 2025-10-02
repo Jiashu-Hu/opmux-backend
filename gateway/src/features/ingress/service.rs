@@ -1,7 +1,7 @@
 // Service Layer - Business logic and orchestration
 
 use super::{
-    constants::{AI_RESPONSE_ROLE, FINISH_REASON_STOP, REWRITE_PREFIX},
+    constants::{AI_RESPONSE_ROLE, FINISH_REASON_STOP},
     error::IngressError,
     repository::IngressRepository,
 };
@@ -36,8 +36,6 @@ pub struct IngressResponse {
     pub model_used: String,
     /// Request cost in USD.
     pub cost: f64,
-    /// Whether response came from cache.
-    pub cache_hit: bool,
     /// Total processing time in milliseconds.
     pub processing_time_ms: u64,
 }
@@ -62,9 +60,10 @@ impl IngressService {
     ///
     /// # Flow
     /// 1. Retrieves conversation context from Memory Service
-    /// 2. Processes prompt (applies rewrite if requested)
-    /// 3. Routes to AI services via Router Service
-    /// 4. Updates conversation context with new exchange
+    /// 2. Builds request payload
+    /// 3. Optimizes routing strategy via Router Service
+    /// 4. Executes LLM call based on routing plan
+    /// 5. Updates conversation context with new exchange
     ///
     /// # Parameters
     /// - `request` - AI routing request with prompt and metadata
@@ -86,69 +85,51 @@ impl IngressService {
             .await
             .map_err(|_| IngressError::ContextRetrievalFailed)?;
 
-        // Step 2: Check if rewrite is needed (based on metadata)
-        let processed_prompt = self
-            .process_prompt(&request.prompt, &request.metadata)
-            .await?;
+        // Step 2: Build payload
+        let payload = serde_json::json!({
+            "prompt": request.prompt,
+            "metadata": request.metadata,
+        });
 
-        // Step 3: Route request to Router Service with context
-        let router_response = self
+        // Step 2.5: [FUTURE] Call RewriteService if metadata.rewrite=true
+        // TODO: Implement conditional rewrite logic when RewriteService is available
+        // if request.metadata.get("rewrite").and_then(|v| v.as_bool()).unwrap_or(false) {
+        //     payload = self.repository.rewrite_request(&payload, &context).await?;
+        // }
+
+        // Step 3: Optimize route via Router Service
+        let _router_response = self
             .repository
-            .route_request(&processed_prompt, &context, &request.metadata)
+            .optimize_route(&payload, &context)
             .await
             .map_err(|_| IngressError::RequestOrchestrationFailed)?;
 
-        // Step 4: Update conversation context in Memory Service
+        // Step 4: Execute LLM call based on routing plan (temporary mock)
+        let llm_result = self
+            .repository
+            .execute_llm_call(&_router_response.optimized_plan, &payload)
+            .await
+            .map_err(|_| IngressError::RequestOrchestrationFailed)?;
+
+        // Step 5: Update conversation context in Memory Service
         self.repository
-            .update_context(&user_id, &request.prompt, &router_response.ai_response)
+            .update_context(&user_id, &request.prompt, &llm_result.ai_response)
             .await
             .map_err(|_| IngressError::ContextUpdateFailed)?;
 
-        // Step 5: Calculate processing time and return response
-        let processing_time = start_time.elapsed().as_millis() as u64;
+        // Step 6: Calculate processing time and return response
+        let processing_time_ms = start_time.elapsed().as_millis() as u64;
 
         Ok(IngressResponse {
             response: AIResponse {
-                content: router_response.ai_response,
+                content: llm_result.ai_response,
                 role: AI_RESPONSE_ROLE.to_string(),
                 finish_reason: Some(FINISH_REASON_STOP.to_string()),
             },
-            model_used: router_response.model_used,
-            cost: router_response.cost,
-            cache_hit: router_response.cache_hit,
-            processing_time_ms: processing_time,
+            model_used: llm_result.model_used,
+            cost: llm_result.actual_cost,
+            processing_time_ms,
         })
-    }
-
-    /// Processes prompt with optional rewriting based on metadata.
-    ///
-    /// Checks `metadata.rewrite` flag and applies rewrite prefix if true.
-    /// Future: Will integrate with Rewrite Service for advanced optimization.
-    ///
-    /// # Parameters
-    /// - `prompt` - Original user prompt
-    /// - `metadata` - Request metadata containing rewrite flag
-    ///
-    /// # Returns
-    /// Processed prompt (with rewrite prefix if applicable)
-    async fn process_prompt(
-        &self,
-        prompt: &str,
-        metadata: &serde_json::Value,
-    ) -> Result<String, IngressError> {
-        // Check if rewrite is requested in metadata
-        let needs_rewrite = metadata
-            .get("rewrite")
-            .and_then(|v| v.as_bool())
-            .unwrap_or(false);
-
-        if needs_rewrite {
-            // Future: call Rewrite Service via repository
-            // For now, just return the original prompt with rewrite prefix
-            Ok(format!("{} {}", REWRITE_PREFIX, prompt))
-        } else {
-            Ok(prompt.to_string())
-        }
     }
 }
 
