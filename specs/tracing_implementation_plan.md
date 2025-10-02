@@ -74,7 +74,7 @@ request. We will use a middleware approach to keep this logic decoupled from bus
   - `tracing::info!(duration_ms, "Business operation completed");`
   - `tracing::warn!("Business logic warning: e.g., fallback was used");`
 - **Log Fields**:
-  - `correlation_id`, `user_id`, `operation`, `duration_ms`, `cache_hit` (if applicable)
+  - `correlation_id`, `user_id`, `operation`, `duration_ms`
 
 ---
 

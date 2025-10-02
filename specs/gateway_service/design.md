@@ -167,12 +167,12 @@ gateway/
 
    - Collect responses from all services
    - Merge into unified response format
-   - Add metadata (processing time, cache hit status, cost savings, etc.)
+   - Add metadata (processing time, cost savings, etc.)
    - Update Memory Service with new conversation context
 
 7. **Response Return**
    - Return JSON response to client with cost optimization info
-   - Log request completion with cache hit metrics
+   - Log request completion with relevant cost metrics
    - Track cost savings for dashboard analytics
 
 ### Error Handling Flow

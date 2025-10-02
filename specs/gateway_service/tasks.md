@@ -76,10 +76,12 @@ Based on the complete system design (requirements.md + design.md), this implemen
 
 - [x] 5.5 Design and Simplify gRPC Contracts
 
-  - ✅ Designed complete gRPC contract for all microservices (RouterService, MemoryService, RewriteService, ValidationService)
+  - ✅ Designed complete gRPC contract for all microservices (RouterService, MemoryService,
+    RewriteService, ValidationService)
   - ✅ Simplified RouterService contract for MVP (removed 7 unnecessary fields)
   - ✅ Renamed RouteOptimizerService → RouterService for consistency
-  - ✅ Removed fields: endpoint_url, needs_rewrite, execution_params, estimated_latency_ms, estimated_cost
+  - ✅ Removed fields: endpoint_url, needs_rewrite, execution_params, estimated_latency_ms,
+    estimated_cost
   - ✅ Removed OptimizationConstraints message (deferred to post-MVP)
   - ✅ Documented parameter handling philosophy (extract from original_payload)
   - ✅ Clarified RouterService responsibility: returns routing strategy only, not AI responses
