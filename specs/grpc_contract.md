@@ -10,7 +10,7 @@ Protocol Buffers clearly define:
 
 - **Memory Service** (deferred to future, renamed to Context Engine, not needed for current MVP): Its sole responsibility is "providing context". It should not care about what the context will be used for (routing, rewriting, or others). So its interface is simply GetContext.
 
-- **RouteOptimizer Service**: Its sole responsibility is "optimization and decision-making". It receives context and requests, then outputs an optimized routing strategy (RoutePlan). It should not execute LLM requests itself; actual execution is handled by Gateway's Executor layer.
+- **Router Service**: Its sole responsibility is "optimization and decision-making". It receives context and requests, then outputs an optimized routing strategy (RoutePlan). It should not execute LLM requests itself; actual execution is handled by Gateway's Executor layer.
 
 - **RewriteService** (upcoming): Its sole responsibility is "request rewriting". Input is the original request and some rules, output is the modified request.
 
@@ -29,7 +29,7 @@ This is the most important question - it defines the core value of the service. 
 
 - **Thinking approach**: Imagine it as a pure function `fn(input) -> output`.
 - **Applied to Opmux (stateless MVP)**:
-  - **RouteOptimizerService**:
+  - **RouterService**:
     - Consumes: User's original request (original_payload)
     - Produces: An optimized routing strategy (RoutePlan) containing vendor_id, model_id, execution parameters, etc. If cache hit, directly returns cached_response.
   - **RewriteService**:
@@ -46,7 +46,7 @@ Services are not isolated - they are used by others (callers, such as Gateway). 
 - **Thinking approach**: If I'm the caller, what information do I need for troubleshooting when calls fail? What data do I need for performance monitoring?
 
 - **Applied to Opmux**:
-  - **Troubleshooting**: "How do I correlate Gateway logs with RouteOptimizerService logs?"
+  - **Troubleshooting**: "How do I correlate Gateway logs with RouterService logs?"
     - → Need to return a `trace_id` in the response.
 
   - **Handling failures**: "The call failed, should I retry?"
@@ -67,11 +67,11 @@ This is a "defensive" question about the future and technical debt. It forces yo
 - **Thinking approach**: Imagine a year from now, the product manager comes with new requirements. What's the worst thing that could happen requiring large-scale refactoring?
 
 - **Applied to Opmux**:
-  - **Your worst fear**: "The PM says: 'We're launching user history!' This means RouteOptimizerService needs context now. Then you discover you must modify all service .proto files, create a v2 version, and spend months migrating all callers from v1 to v2."
+  - **Your worst fear**: "The PM says: 'We're launching user history!' This means RouterService needs context now. Then you discover you must modify all service .proto files, create a v2 version, and spend months migrating all callers from v1 to v2."
 
   - **How to avoid this nightmare**: To avoid it, we make choices today. We can reserve a `context` field in the v1 interface and explicitly document "this field is ignored in MVP phase".
 
-  - **Result**: A year later when new requirements arrive, you only need to upgrade Gateway and RouteOptimizerService's internal logic to use this pre-existing field. No interface changes, no painful migration. You save months of work and can focus on developing new features.
+  - **Result**: A year later when new requirements arrive, you only need to upgrade Gateway and RouterService's internal logic to use this pre-existing field. No interface changes, no painful migration. You save months of work and can focus on developing new features.
 
 ## Proto Definitions
 
@@ -118,17 +118,17 @@ message Cost {
 ```
 
 
-### proto/route_optimizer/v1/route_optimizer.proto
+### proto/router/v1/router.proto
 
 ```protobuf
 syntax = "proto3";
 
-package opmux.routeoptimizer.v1;
+package opmux.router.v1;
 
 import "opmux/common/v1/common.proto";
 import "google/protobuf/struct.proto";
 
-service RouteOptimizerService {
+service RouterService {
   // Optimize and determine the best routing strategy (does NOT execute LLM calls)
   rpc OptimizeRoute(OptimizeRouteRequest) returns (OptimizeRouteResponse);
 }
@@ -184,10 +184,10 @@ message OptimizeRouteResponse {
 
 **Architecture Explanation:**
 
-RouteOptimizerService is only responsible for "strategy decisions", not executing actual LLM calls. Complete flow:
+RouterService is only responsible for "strategy decisions", not executing actual LLM calls. Complete flow:
 
 ```
-Client → Gateway → RouteOptimizerService: Request strategy
+Client → Gateway → RouterService: Request strategy
                  ← Returns RoutePlan
 
 Gateway → Executor Layer: Call actual LLM based on RoutePlan
@@ -295,12 +295,12 @@ Let's break down this question with a "promotion criteria" checklist:
 If a field's value fundamentally changes how your current service behaves, it should be "promoted" to a first-class citizen field.
 
 **Positive examples (should promote):**
-- **deadline_ms**: We extract it from `original_payload` and put it in `RequestMeta` because RouteOptimizerService's core logic depends on it. The service needs to understand this field to decide "Should I use fast/expensive real-time routing, or slow/cheap batch routing?" This field directly affects routing decisions.
+- **deadline_ms**: We extract it from `original_payload` and put it in `RequestMeta` because RouterService's core logic depends on it. The service needs to understand this field to decide "Should I use fast/expensive real-time routing, or slow/cheap batch routing?" This field directly affects routing decisions.
 
-- **client_id**: Similarly, if RouteOptimizerService needs to provide different routing strategies based on different customer tiers (client_id linked to customer information), then client_id must be a first-class citizen field it can directly understand.
+- **client_id**: Similarly, if RouterService needs to provide different routing strategies based on different customer tiers (client_id linked to customer information), then client_id must be a first-class citizen field it can directly understand.
 
 **Negative examples (should NOT promote):**
-- **temperature**: Does RouteOptimizerService's routing logic care about temperature? Usually not. It doesn't need to change routing decisions because temperature is 0.5 vs 0.8. This field just needs to be passed to the LLM eventually. So it should stay in `original_payload`.
+- **temperature**: Does RouterService's routing logic care about temperature? Usually not. It doesn't need to change routing decisions because temperature is 0.5 vs 0.8. This field just needs to be passed to the LLM eventually. So it should stay in `original_payload`.
 
 ### Criterion 2: Does this field belong to "cross-cutting system-level concerns"?
 
@@ -321,7 +321,7 @@ First-class citizen fields should have stable structure and explicit types. Data
 **Negative examples:**
 - **original_payload**: This is precisely the core value of `original_payload`. User request body (payload) structure is extremely variable. OpenAI's input is a messages array, Anthropic is a text block, Cohere is yet another format. We cannot and absolutely should not model every LLM's input format in the gRPC contract.
 
-- Therefore, we use `google.protobuf.Struct` as a "generic JSON container" to carry `original_payload`. For RouteOptimizerService, it's an "opaque black box". Its final destination is the downstream LLM, and RouteOptimizerService just needs to pass it through unchanged.
+- Therefore, we use `google.protobuf.Struct` as a "generic JSON container" to carry `original_payload`. For RouterService, it's an "opaque black box". Its final destination is the downstream LLM, and RouterService just needs to pass it through unchanged.
 
 ---
 
