@@ -179,10 +179,40 @@ Gateway → Executor Layer: Call actual LLM based on RoutePlan
 Gateway → Client: Return response
 ```
 
+**Important Design Note:**
+
+RouterService receives the complete `original_payload` from the client, which contains all execution parameters (temperature, max_tokens, top_p, etc.) and user preferences. RouterService can parse these parameters from `original_payload` when needed for routing decisions, but does NOT return modified parameters in the response.
+
+Why we don't pass execution parameters separately:
+- **Single source of truth**: All parameters are in `original_payload`, avoiding data duplication
+- **Simplicity**: RouterService doesn't modify parameters in MVP - it only selects vendor/model
+- **Flexibility**: Gateway/Executor extracts parameters directly from `original_payload` for LLM calls
+- **Future-proof**: If RouterService needs to modify parameters later, we can add `execution_params` back to RoutePlan
+
+Example flow:
+```
+Client request:
+{
+  "messages": [...],
+  "temperature": 0.7,
+  "max_tokens": 1000
+}
+
+RouterService:
+1. Parses original_payload to understand request characteristics
+2. May consider temperature/max_tokens for routing decisions
+3. Returns: { vendor_id: "openai", model_id: "gpt-4" }
+
+Gateway/Executor:
+1. Extracts temperature=0.7, max_tokens=1000 from original_payload
+2. Calls OpenAI API with these parameters
+```
+
 Executor Layer is an internal module within Gateway (not a gRPC service), responsible for:
 - Integrating vendor SDKs (OpenAI, Anthropic, etc.)
 - Handling HTTP calls, retries, timeouts
 - Supporting streaming responses (SSE/WebSocket)
+- Extracting execution parameters from original_payload
 
 
 ### proto/rewrite_service/v1/rewrite.proto
