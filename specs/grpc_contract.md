@@ -177,7 +177,6 @@ message OptimizeRouteResponse {
 
   // Observability information
   string optimization_reason = 6;  // Why this strategy was chosen (for debugging/monitoring)
-  bool needs_rewrite = 7;         // Whether RewriteService should be called first
 }
 ```
 
