@@ -72,6 +72,21 @@ Based on the complete system design (requirements.md + design.md), this implemen
   - Integrate with existing unified middleware
   - _Requirement: Requirement 3 - Unified Authentication and Authorization_
 
+## Iteration 2.7: gRPC Contract Design and Simplification
+
+- [x] 5.5 Design and Simplify gRPC Contracts
+
+  - ✅ Designed complete gRPC contract for all microservices (RouterService, MemoryService, RewriteService, ValidationService)
+  - ✅ Simplified RouterService contract for MVP (removed 7 unnecessary fields)
+  - ✅ Renamed RouteOptimizerService → RouterService for consistency
+  - ✅ Removed fields: endpoint_url, needs_rewrite, execution_params, estimated_latency_ms, estimated_cost
+  - ✅ Removed OptimizationConstraints message (deferred to post-MVP)
+  - ✅ Documented parameter handling philosophy (extract from original_payload)
+  - ✅ Clarified RouterService responsibility: returns routing strategy only, not AI responses
+  - ✅ Aligned repository code with simplified contract design
+  - _Requirement: Requirement 2 - Microservice Coordination_
+  - _Status: Contract design complete, ready for microservice implementation_
+
 ## Iteration 3: Service Integration
 
 - [ ] 6. Memory Service Integration (Deferred until post-MVP)
@@ -82,21 +97,29 @@ Based on the complete system design (requirements.md + design.md), this implemen
   - Handle service failures and implement basic retry logic
   - _Requirement: Requirement 2 - Microservice Coordination_
 
-- [ ] 7. Router Service Integration
+- [x] 7. Router Service Integration (Repository Layer - Mock Implementation)
 
-  - Add gRPC client for Router Service
-  - Implement request routing with context data
-  - Add response processing and cost tracking
-  - Integrate with existing ingress endpoint flow
+  - ✅ Aligned repository structures with simplified gRPC contract
+  - ✅ Added RoutePlan, RouterServiceResponse, LLMExecutionResult structures
+  - ✅ Implemented optimize_route() method (mock - returns routing strategy)
+  - ✅ Implemented execute_llm_call() method (temporary mock - simulates Executor)
+  - ✅ Updated service layer to use new two-step flow (optimize → execute)
+  - ✅ Removed cache_hit field from IngressResponse
+  - ⏸️ Real gRPC client implementation deferred (using mock data)
+  - ⏸️ Executor Layer implementation deferred (temporary mock in repository)
   - _Requirement: Requirement 2 - Microservice Coordination_
+  - _Status: Mock implementation complete, ready for gRPC client integration_
 
-- [ ] 8. Rewrite Service Integration (Conditional Logic)
+- [ ] 8. Rewrite Service Integration (Deferred to Future)
 
-  - Add gRPC client for Rewrite Service
-  - Implement conditional routing based on metadata.rewrite flag
-  - Integrate rewrite logic into existing ingress flow
-  - Add rewrite-specific error handling
+  - ✅ Added TODO comments and placeholder for future integration
+  - ✅ Documented integration point in service layer (Step 2.5)
+  - ✅ Added commented rewrite_request() method signature in repository
+  - ⏸️ MVP does not require rewrite functionality (deferred per design decision)
+  - ⏸️ Will implement when RewriteService is available
+  - ⏸️ Conditional routing based on metadata.rewrite flag (future)
   - _Requirement: Requirement 2 - Microservice Coordination_
+  - _Status: Interface designed, implementation deferred to post-MVP_
 
 - [ ] 9. Validation Service Integration (Optional)
   - Add gRPC client for Validation Service
