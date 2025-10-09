@@ -11,3 +11,6 @@ pub mod features;
 
 // HTTP middleware
 pub mod middleware;
+
+// Executor layer for LLM API execution
+pub mod executor;
