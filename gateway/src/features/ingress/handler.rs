@@ -4,23 +4,11 @@ use super::{
     error::IngressError,
     service::{IngressRequest, IngressResponse, IngressService},
 };
-use crate::features::{auth::AuthContext, executor::service::ExecutorService};
+use crate::{features::auth::AuthContext, AppState};
 use axum::{
     extract::{Json, State},
     response::Json as ResponseJson,
 };
-use std::sync::Arc;
-
-/// Application state shared across all handlers.
-///
-/// This must match the AppState struct defined in main.rs.
-/// Using a unified AppState pattern allows for easy addition of new
-/// shared services without modifying handler signatures.
-#[derive(Clone)]
-pub struct AppState {
-    /// Shared ExecutorService for LLM execution across all requests
-    pub executor_service: Arc<ExecutorService>,
-}
 
 /// HTTP handler for AI routing ingress endpoint.
 ///

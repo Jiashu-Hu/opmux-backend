@@ -7,12 +7,11 @@ use axum::{
 use gateway::{
     core::config::get_config,
     features::{
-        executor::config::ExecutorConfig,
-        executor::service::ExecutorService,
-        health,
-        ingress::{self, AppState},
+        executor::config::ExecutorConfig, executor::service::ExecutorService, health,
+        ingress,
     },
     middleware::auth,
+    AppState,
 };
 use std::sync::Arc;
 
