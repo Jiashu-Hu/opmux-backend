@@ -167,12 +167,12 @@ Based on the complete system design (requirements.md + design.md), this implemen
     - Add validation and error handling
     - _Status: ✅ Completed (commit 74afb3c) - 6 unit tests added_
 
-  - [ ] 8.6.3 Implement Vendor Selection
+  - [x] 8.6.3 Implement Vendor Selection
 
     - Create `get_vendor()` method
     - Lookup vendor by vendor_id
     - Return appropriate error if vendor not found
-    - _Status: Not started_
+    - _Status: ✅ Completed (commit 263c334) - 4 unit tests added_
 
   - [ ] 8.6.4 Implement Retry Logic
 
