@@ -6,9 +6,13 @@ use axum::{
 };
 use gateway::{
     core::config::get_config,
-    features::{health, ingress},
+    features::{
+        executor::config::ExecutorConfig, executor::service::ExecutorService, health,
+        ingress,
+    },
     middleware::auth,
 };
+use std::sync::Arc;
 
 #[tokio::main]
 async fn main() {
@@ -18,10 +22,23 @@ async fn main() {
     // Initialize configuration (logs all settings including warnings)
     let config = get_config();
 
+    // Initialize ExecutorService for LLM execution
+    tracing::info!("Initializing ExecutorService...");
+    let executor_config = ExecutorConfig::from_env();
+    let executor_service = Arc::new(
+        ExecutorService::from_config(executor_config.clone())
+            .expect("Failed to initialize ExecutorService"),
+    );
+    tracing::info!(
+        "ExecutorService initialized with {} vendors",
+        executor_service.vendor_count()
+    );
+
     // Create protected routes that require authentication
     let protected_routes = Router::new()
         .route("/api/v1/route", post(ingress::ingress_handler))
-        .layer(middleware::from_fn(auth::auth_middleware));
+        .layer(middleware::from_fn(auth::auth_middleware))
+        .with_state(executor_service.clone());
 
     // Create public routes that don't require authentication
     let public_routes = Router::new()
