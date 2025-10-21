@@ -406,7 +406,114 @@ impl ExecutorService {
 mod tests {
     use super::*;
     use crate::executor::config::OpenAIConfig;
+    use crate::executor::vendors::LLMVendor;
+    use async_trait::async_trait;
     use serde_json::json;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Arc;
+
+    /// Configurable mock vendor for testing.
+    ///
+    /// Supports various failure scenarios:
+    /// - Fail N times then succeed
+    /// - Always fail with specific error
+    /// - Always succeed
+    /// - Model support configuration
+    #[derive(Clone)]
+    struct MockVendor {
+        vendor_id: String,
+        supported_models: Vec<String>,
+        /// Number of times to fail before succeeding (None = always succeed)
+        fail_count: Option<Arc<AtomicUsize>>,
+        /// Error to return on failure
+        failure_error: Option<ExecutorError>,
+    }
+
+    impl MockVendor {
+        /// Creates a mock vendor that always succeeds.
+        fn new_success(vendor_id: &str, models: Vec<&str>) -> Self {
+            Self {
+                vendor_id: vendor_id.to_string(),
+                supported_models: models.iter().map(|s| s.to_string()).collect(),
+                fail_count: None,
+                failure_error: None,
+            }
+        }
+
+        /// Creates a mock vendor that fails N times then succeeds.
+        fn new_fail_then_succeed(
+            vendor_id: &str,
+            models: Vec<&str>,
+            fail_times: usize,
+            error: ExecutorError,
+        ) -> Self {
+            Self {
+                vendor_id: vendor_id.to_string(),
+                supported_models: models.iter().map(|s| s.to_string()).collect(),
+                fail_count: Some(Arc::new(AtomicUsize::new(fail_times))),
+                failure_error: Some(error),
+            }
+        }
+
+        /// Creates a mock vendor that always fails.
+        fn new_always_fail(
+            vendor_id: &str,
+            models: Vec<&str>,
+            error: ExecutorError,
+        ) -> Self {
+            Self {
+                vendor_id: vendor_id.to_string(),
+                supported_models: models.iter().map(|s| s.to_string()).collect(),
+                fail_count: Some(Arc::new(AtomicUsize::new(usize::MAX))),
+                failure_error: Some(error),
+            }
+        }
+    }
+
+    #[async_trait]
+    impl LLMVendor for MockVendor {
+        async fn execute(
+            &self,
+            model: &str,
+            _params: ExecutionParams,
+        ) -> Result<ExecutionResult, ExecutorError> {
+            // Check if we should fail
+            if let Some(ref counter) = self.fail_count {
+                let remaining = counter.load(Ordering::SeqCst);
+                if remaining > 0 {
+                    counter.fetch_sub(1, Ordering::SeqCst);
+                    return Err(self.failure_error.clone().unwrap());
+                }
+            }
+
+            // Success case
+            Ok(ExecutionResult {
+                content: format!("Mock response from {} using {}", self.vendor_id, model),
+                model_used: model.to_string(),
+                prompt_tokens: 10,
+                completion_tokens: 20,
+                total_cost: 0.001,
+                finish_reason: "stop".to_string(),
+            })
+        }
+
+        fn vendor_id(&self) -> &str {
+            &self.vendor_id
+        }
+
+        fn supports_model(&self, model: &str) -> bool {
+            self.supported_models.contains(&model.to_string())
+        }
+
+        fn calculate_cost(
+            &self,
+            _prompt_tokens: i64,
+            _completion_tokens: i64,
+            _model: &str,
+        ) -> f64 {
+            0.001
+        }
+    }
 
     // Helper function to create a test ExecutorService with OpenAI vendor
     fn create_test_executor_service() -> ExecutorService {
@@ -417,6 +524,28 @@ mod tests {
             timeout_ms: 30000,
         };
         ExecutorService::from_config(config).expect("Failed to create test executor")
+    }
+
+    // Helper function to create ExecutorService with mock vendors
+    fn create_mock_executor_service(
+        vendors: Vec<(String, Arc<dyn LLMVendor>)>,
+    ) -> ExecutorService {
+        let mut vendor_map = HashMap::new();
+        for (id, vendor) in vendors {
+            vendor_map.insert(id, vendor);
+        }
+
+        let config = ExecutorConfig {
+            openai: None,
+            anthropic_api_key: None,
+            max_retries: 3,
+            timeout_ms: 30000,
+        };
+
+        ExecutorService {
+            vendors: vendor_map,
+            config,
+        }
     }
 
     #[test]
@@ -659,5 +788,401 @@ mod tests {
         assert_eq!(params.temperature, None); // Invalid value ignored
         assert_eq!(params.max_tokens, Some(100));
         assert!(!params.stream); // Invalid value defaults to false
+    }
+
+    // ========================================
+    // Comprehensive Tests for execute_with_retry()
+    // ========================================
+
+    #[tokio::test]
+    async fn test_execute_with_retry_success_first_attempt() {
+        let mock_vendor = MockVendor::new_success("mock", vec!["model-1"]);
+        let service = create_mock_executor_service(vec![(
+            "mock".to_string(),
+            Arc::new(mock_vendor),
+        )]);
+
+        let params = ExecutionParams {
+            messages: vec![],
+            temperature: None,
+            max_tokens: None,
+            top_p: None,
+            stream: false,
+        };
+
+        let result = service.execute_with_retry("mock", "model-1", &params).await;
+
+        assert!(result.is_ok());
+        let exec_result = result.unwrap();
+        assert_eq!(exec_result.model_used, "model-1");
+        assert!(exec_result.content.contains("Mock response"));
+    }
+
+    #[tokio::test]
+    async fn test_execute_with_retry_fail_once_then_succeed() {
+        // Vendor fails once with retryable error, then succeeds
+        let mock_vendor = MockVendor::new_fail_then_succeed(
+            "mock",
+            vec!["model-1"],
+            1,
+            ExecutorError::NetworkError("Connection timeout".to_string()),
+        );
+        let service = create_mock_executor_service(vec![(
+            "mock".to_string(),
+            Arc::new(mock_vendor),
+        )]);
+
+        let params = ExecutionParams {
+            messages: vec![],
+            temperature: None,
+            max_tokens: None,
+            top_p: None,
+            stream: false,
+        };
+
+        let result = service.execute_with_retry("mock", "model-1", &params).await;
+
+        assert!(result.is_ok());
+        let exec_result = result.unwrap();
+        assert_eq!(exec_result.model_used, "model-1");
+    }
+
+    #[tokio::test]
+    async fn test_execute_with_retry_fail_twice_then_succeed() {
+        // Vendor fails twice with retryable error, then succeeds
+        let mock_vendor = MockVendor::new_fail_then_succeed(
+            "mock",
+            vec!["model-1"],
+            2,
+            ExecutorError::TimeoutError(30000),
+        );
+        let service = create_mock_executor_service(vec![(
+            "mock".to_string(),
+            Arc::new(mock_vendor),
+        )]);
+
+        let params = ExecutionParams {
+            messages: vec![],
+            temperature: None,
+            max_tokens: None,
+            top_p: None,
+            stream: false,
+        };
+
+        let result = service.execute_with_retry("mock", "model-1", &params).await;
+
+        assert!(result.is_ok());
+        let exec_result = result.unwrap();
+        assert_eq!(exec_result.model_used, "model-1");
+    }
+
+    #[tokio::test]
+    async fn test_execute_with_retry_exhaust_retries() {
+        // Vendor always fails with retryable error (max_retries = 3)
+        let mock_vendor = MockVendor::new_always_fail(
+            "mock",
+            vec!["model-1"],
+            ExecutorError::RateLimitExceeded("mock".to_string()),
+        );
+        let service = create_mock_executor_service(vec![(
+            "mock".to_string(),
+            Arc::new(mock_vendor),
+        )]);
+
+        let params = ExecutionParams {
+            messages: vec![],
+            temperature: None,
+            max_tokens: None,
+            top_p: None,
+            stream: false,
+        };
+
+        let result = service.execute_with_retry("mock", "model-1", &params).await;
+
+        assert!(result.is_err());
+        match result {
+            Err(ExecutorError::RateLimitExceeded(_)) => {}
+            _ => panic!("Expected RateLimitExceeded error"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_execute_with_retry_non_retryable_error() {
+        // Vendor fails with non-retryable error (should fail immediately)
+        let mock_vendor = MockVendor::new_always_fail(
+            "mock",
+            vec!["model-1"],
+            ExecutorError::AuthenticationFailed("mock".to_string()),
+        );
+        let service = create_mock_executor_service(vec![(
+            "mock".to_string(),
+            Arc::new(mock_vendor),
+        )]);
+
+        let params = ExecutionParams {
+            messages: vec![],
+            temperature: None,
+            max_tokens: None,
+            top_p: None,
+            stream: false,
+        };
+
+        let result = service.execute_with_retry("mock", "model-1", &params).await;
+
+        assert!(result.is_err());
+        match result {
+            Err(ExecutorError::AuthenticationFailed(_)) => {}
+            _ => panic!("Expected AuthenticationFailed error"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_execute_with_retry_unsupported_model() {
+        let mock_vendor = MockVendor::new_success("mock", vec!["model-1"]);
+        let service = create_mock_executor_service(vec![(
+            "mock".to_string(),
+            Arc::new(mock_vendor),
+        )]);
+
+        let params = ExecutionParams {
+            messages: vec![],
+            temperature: None,
+            max_tokens: None,
+            top_p: None,
+            stream: false,
+        };
+
+        // Try to execute with unsupported model
+        let result = service
+            .execute_with_retry("mock", "unsupported-model", &params)
+            .await;
+
+        assert!(result.is_err());
+        match result {
+            Err(ExecutorError::UnsupportedModel(vendor, model)) => {
+                assert_eq!(vendor, "mock");
+                assert_eq!(model, "unsupported-model");
+            }
+            _ => panic!("Expected UnsupportedModel error"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_execute_with_retry_vendor_not_found() {
+        let mock_vendor = MockVendor::new_success("mock", vec!["model-1"]);
+        let service = create_mock_executor_service(vec![(
+            "mock".to_string(),
+            Arc::new(mock_vendor),
+        )]);
+
+        let params = ExecutionParams {
+            messages: vec![],
+            temperature: None,
+            max_tokens: None,
+            top_p: None,
+            stream: false,
+        };
+
+        // Try to execute with unknown vendor
+        let result = service
+            .execute_with_retry("unknown", "model-1", &params)
+            .await;
+
+        assert!(result.is_err());
+        match result {
+            Err(ExecutorError::UnsupportedVendor(vendor)) => {
+                assert_eq!(vendor, "unknown");
+            }
+            _ => panic!("Expected UnsupportedVendor error"),
+        }
+    }
+
+    // ========================================
+    // Comprehensive Tests for execute_fallbacks()
+    // ========================================
+
+    #[tokio::test]
+    async fn test_execute_fallbacks_first_fallback_succeeds() {
+        let fallback1 = MockVendor::new_success("fallback1", vec!["model-1"]);
+        let fallback2 = MockVendor::new_success("fallback2", vec!["model-2"]);
+
+        let service = create_mock_executor_service(vec![
+            ("fallback1".to_string(), Arc::new(fallback1)),
+            ("fallback2".to_string(), Arc::new(fallback2)),
+        ]);
+
+        let params = ExecutionParams {
+            messages: vec![],
+            temperature: None,
+            max_tokens: None,
+            top_p: None,
+            stream: false,
+        };
+
+        let fallback_plans = vec![
+            RoutePlan {
+                vendor_id: "fallback1".to_string(),
+                model_id: "model-1".to_string(),
+                fallback_plans: vec![],
+            },
+            RoutePlan {
+                vendor_id: "fallback2".to_string(),
+                model_id: "model-2".to_string(),
+                fallback_plans: vec![],
+            },
+        ];
+
+        let primary_error = ExecutorError::ApiCallFailed("Primary failed".to_string());
+
+        let result = service
+            .execute_fallbacks(&fallback_plans, &params, primary_error)
+            .await;
+
+        assert!(result.is_ok());
+        let exec_result = result.unwrap();
+        assert_eq!(exec_result.model_used, "model-1"); // First fallback succeeded
+    }
+
+    #[tokio::test]
+    async fn test_execute_fallbacks_second_fallback_succeeds() {
+        // First fallback always fails, second succeeds
+        let fallback1 = MockVendor::new_always_fail(
+            "fallback1",
+            vec!["model-1"],
+            ExecutorError::NetworkError("Fallback1 failed".to_string()),
+        );
+        let fallback2 = MockVendor::new_success("fallback2", vec!["model-2"]);
+
+        let service = create_mock_executor_service(vec![
+            ("fallback1".to_string(), Arc::new(fallback1)),
+            ("fallback2".to_string(), Arc::new(fallback2)),
+        ]);
+
+        let params = ExecutionParams {
+            messages: vec![],
+            temperature: None,
+            max_tokens: None,
+            top_p: None,
+            stream: false,
+        };
+
+        let fallback_plans = vec![
+            RoutePlan {
+                vendor_id: "fallback1".to_string(),
+                model_id: "model-1".to_string(),
+                fallback_plans: vec![],
+            },
+            RoutePlan {
+                vendor_id: "fallback2".to_string(),
+                model_id: "model-2".to_string(),
+                fallback_plans: vec![],
+            },
+        ];
+
+        let primary_error = ExecutorError::ApiCallFailed("Primary failed".to_string());
+
+        let result = service
+            .execute_fallbacks(&fallback_plans, &params, primary_error)
+            .await;
+
+        assert!(result.is_ok());
+        let exec_result = result.unwrap();
+        assert_eq!(exec_result.model_used, "model-2"); // Second fallback succeeded
+    }
+
+    #[tokio::test]
+    async fn test_execute_fallbacks_all_fail_returns_primary_error() {
+        // All fallbacks fail
+        let fallback1 = MockVendor::new_always_fail(
+            "fallback1",
+            vec!["model-1"],
+            ExecutorError::NetworkError("Fallback1 failed".to_string()),
+        );
+        let fallback2 = MockVendor::new_always_fail(
+            "fallback2",
+            vec!["model-2"],
+            ExecutorError::TimeoutError(30000),
+        );
+
+        let service = create_mock_executor_service(vec![
+            ("fallback1".to_string(), Arc::new(fallback1)),
+            ("fallback2".to_string(), Arc::new(fallback2)),
+        ]);
+
+        let params = ExecutionParams {
+            messages: vec![],
+            temperature: None,
+            max_tokens: None,
+            top_p: None,
+            stream: false,
+        };
+
+        let fallback_plans = vec![
+            RoutePlan {
+                vendor_id: "fallback1".to_string(),
+                model_id: "model-1".to_string(),
+                fallback_plans: vec![],
+            },
+            RoutePlan {
+                vendor_id: "fallback2".to_string(),
+                model_id: "model-2".to_string(),
+                fallback_plans: vec![],
+            },
+        ];
+
+        let primary_error = ExecutorError::ApiCallFailed("Primary failed".to_string());
+
+        let result = service
+            .execute_fallbacks(&fallback_plans, &params, primary_error.clone())
+            .await;
+
+        assert!(result.is_err());
+        // Should return primary error, not fallback errors
+        match result {
+            Err(ExecutorError::ApiCallFailed(msg)) => {
+                assert_eq!(msg, "Primary failed");
+            }
+            _ => panic!("Expected primary error (ApiCallFailed)"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_execute_fallbacks_with_retry_logic() {
+        // Fallback fails twice then succeeds (tests that fallbacks get retry logic)
+        let fallback1 = MockVendor::new_fail_then_succeed(
+            "fallback1",
+            vec!["model-1"],
+            2,
+            ExecutorError::RateLimitExceeded("fallback1".to_string()),
+        );
+
+        let service = create_mock_executor_service(vec![(
+            "fallback1".to_string(),
+            Arc::new(fallback1),
+        )]);
+
+        let params = ExecutionParams {
+            messages: vec![],
+            temperature: None,
+            max_tokens: None,
+            top_p: None,
+            stream: false,
+        };
+
+        let fallback_plans = vec![RoutePlan {
+            vendor_id: "fallback1".to_string(),
+            model_id: "model-1".to_string(),
+            fallback_plans: vec![],
+        }];
+
+        let primary_error = ExecutorError::ApiCallFailed("Primary failed".to_string());
+
+        let result = service
+            .execute_fallbacks(&fallback_plans, &params, primary_error)
+            .await;
+
+        assert!(result.is_ok());
+        let exec_result = result.unwrap();
+        assert_eq!(exec_result.model_used, "model-1");
     }
 }
