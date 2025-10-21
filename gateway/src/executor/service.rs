@@ -76,12 +76,144 @@ impl ExecutorService {
     ///
     /// # Errors
     /// Returns `UnsupportedVendor` if vendor_id is not found in registry
-    #[allow(dead_code)] // Will be used in Task 8.6.4
     fn get_vendor(&self, vendor_id: &str) -> Result<Arc<dyn LLMVendor>, ExecutorError> {
         self.vendors
             .get(vendor_id)
             .cloned()
             .ok_or_else(|| ExecutorError::UnsupportedVendor(vendor_id.to_string()))
+    }
+
+    /// Executes LLM call with retry logic and exponential backoff.
+    ///
+    /// # Flow
+    /// 1. Get vendor by vendor_id
+    /// 2. Validate model support
+    /// 3. Attempt execution with retry loop
+    /// 4. Apply exponential backoff between retries (1s, 2s, 4s, 8s...)
+    ///
+    /// # Parameters
+    /// - `vendor_id` - Vendor identifier
+    /// - `model_id` - Model identifier
+    /// - `params` - Execution parameters
+    ///
+    /// # Returns
+    /// Execution result with AI response and metrics
+    ///
+    /// # Errors
+    /// Returns error if:
+    /// - Vendor not found
+    /// - Model not supported
+    /// - All retry attempts exhausted
+    /// - Non-retryable error occurs
+    #[allow(dead_code)] // Will be used in Task 8.6.6
+    async fn execute_with_retry(
+        &self,
+        vendor_id: &str,
+        model_id: &str,
+        params: &ExecutionParams,
+    ) -> Result<ExecutionResult, ExecutorError> {
+        // Get vendor and validate model support
+        let vendor = self.get_vendor(vendor_id)?;
+
+        if !vendor.supports_model(model_id) {
+            return Err(ExecutorError::UnsupportedModel(
+                vendor_id.to_string(),
+                model_id.to_string(),
+            ));
+        }
+
+        let max_retries = self.config.max_retries;
+        let mut last_error = None;
+
+        // Retry loop with exponential backoff
+        for attempt in 0..=max_retries {
+            if attempt > 0 {
+                // Exponential backoff: 1s, 2s, 4s, 8s, ...
+                let backoff_ms = 1000 * (2_u64.pow(attempt - 1));
+                tracing::info!(
+                    "Retrying execution: attempt {}/{}, vendor={}, model={}, backoff={}ms",
+                    attempt,
+                    max_retries,
+                    vendor_id,
+                    model_id,
+                    backoff_ms
+                );
+                tokio::time::sleep(tokio::time::Duration::from_millis(backoff_ms)).await;
+            }
+
+            // Attempt execution
+            match vendor.execute(model_id, params.clone()).await {
+                Ok(result) => {
+                    if attempt > 0 {
+                        tracing::info!(
+                            "Execution succeeded after {} retries: vendor={}, model={}",
+                            attempt,
+                            vendor_id,
+                            model_id
+                        );
+                    }
+                    return Ok(result);
+                }
+                Err(e) => {
+                    // Determine if error is retryable
+                    if Self::is_retryable_error(&e) {
+                        tracing::warn!(
+                            "Retryable error on attempt {}/{}: vendor={}, model={}, error={:?}",
+                            attempt,
+                            max_retries,
+                            vendor_id,
+                            model_id,
+                            e
+                        );
+                        last_error = Some(e);
+                        continue;
+                    } else {
+                        // Non-retryable error, fail immediately
+                        tracing::error!(
+                            "Non-retryable error: vendor={}, model={}, error={:?}",
+                            vendor_id,
+                            model_id,
+                            e
+                        );
+                        return Err(e);
+                    }
+                }
+            }
+        }
+
+        // All retries exhausted
+        tracing::error!(
+            "Max retries exceeded: vendor={}, model={}, attempts={}",
+            vendor_id,
+            model_id,
+            max_retries + 1
+        );
+        Err(last_error.unwrap_or_else(|| {
+            ExecutorError::ApiCallFailed("Max retries exceeded".to_string())
+        }))
+    }
+
+    /// Determines if an error is retryable.
+    ///
+    /// # Retryable Errors
+    /// - NetworkError - Network connectivity issues
+    /// - TimeoutError - Request timeout
+    /// - RateLimitExceeded - Vendor rate limit hit
+    /// - ApiCallFailed - Generic API call failure
+    ///
+    /// # Non-Retryable Errors
+    /// - AuthenticationFailed - Invalid API key (won't fix with retry)
+    /// - InvalidPayload - Bad request format (won't fix with retry)
+    /// - UnsupportedVendor - Vendor not configured (won't fix with retry)
+    /// - UnsupportedModel - Model not supported (won't fix with retry)
+    fn is_retryable_error(error: &ExecutorError) -> bool {
+        matches!(
+            error,
+            ExecutorError::NetworkError(_)
+                | ExecutorError::TimeoutError(_)
+                | ExecutorError::RateLimitExceeded(_)
+                | ExecutorError::ApiCallFailed(_)
+        )
     }
 
     /// Extracts execution parameters from request payload.
@@ -212,6 +344,55 @@ mod tests {
         // Should have 1 vendor (OpenAI) if OPENAI_API_KEY is set
         // Otherwise, from_config would have failed
         assert_eq!(service.vendor_count(), 1);
+    }
+
+    #[test]
+    fn test_is_retryable_error_network_error() {
+        let error = ExecutorError::NetworkError("Connection failed".to_string());
+        assert!(ExecutorService::is_retryable_error(&error));
+    }
+
+    #[test]
+    fn test_is_retryable_error_timeout() {
+        let error = ExecutorError::TimeoutError(30000);
+        assert!(ExecutorService::is_retryable_error(&error));
+    }
+
+    #[test]
+    fn test_is_retryable_error_rate_limit() {
+        let error = ExecutorError::RateLimitExceeded("openai".to_string());
+        assert!(ExecutorService::is_retryable_error(&error));
+    }
+
+    #[test]
+    fn test_is_retryable_error_api_call_failed() {
+        let error = ExecutorError::ApiCallFailed("500 Internal Server Error".to_string());
+        assert!(ExecutorService::is_retryable_error(&error));
+    }
+
+    #[test]
+    fn test_is_not_retryable_error_authentication() {
+        let error = ExecutorError::AuthenticationFailed("openai".to_string());
+        assert!(!ExecutorService::is_retryable_error(&error));
+    }
+
+    #[test]
+    fn test_is_not_retryable_error_invalid_payload() {
+        let error = ExecutorError::InvalidPayload("Missing messages".to_string());
+        assert!(!ExecutorService::is_retryable_error(&error));
+    }
+
+    #[test]
+    fn test_is_not_retryable_error_unsupported_vendor() {
+        let error = ExecutorError::UnsupportedVendor("unknown".to_string());
+        assert!(!ExecutorService::is_retryable_error(&error));
+    }
+
+    #[test]
+    fn test_is_not_retryable_error_unsupported_model() {
+        let error =
+            ExecutorError::UnsupportedModel("openai".to_string(), "gpt-5".to_string());
+        assert!(!ExecutorService::is_retryable_error(&error));
     }
 
     #[test]
