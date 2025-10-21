@@ -818,7 +818,7 @@ mod tests {
         assert!(exec_result.content.contains("Mock response"));
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn test_execute_with_retry_fail_once_then_succeed() {
         // Vendor fails once with retryable error, then succeeds
         let mock_vendor = MockVendor::new_fail_then_succeed(
@@ -840,14 +840,23 @@ mod tests {
             stream: false,
         };
 
-        let result = service.execute_with_retry("mock", "model-1", &params).await;
+        // Spawn the test in a background task
+        let handle = tokio::spawn(async move {
+            service.execute_with_retry("mock", "model-1", &params).await
+        });
+
+        // Fast-forward time to complete the 1-second backoff instantly
+        tokio::time::advance(std::time::Duration::from_secs(1)).await;
+
+        // Wait for the background task to complete
+        let result = handle.await.unwrap();
 
         assert!(result.is_ok());
         let exec_result = result.unwrap();
         assert_eq!(exec_result.model_used, "model-1");
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn test_execute_with_retry_fail_twice_then_succeed() {
         // Vendor fails twice with retryable error, then succeeds
         let mock_vendor = MockVendor::new_fail_then_succeed(
@@ -869,14 +878,23 @@ mod tests {
             stream: false,
         };
 
-        let result = service.execute_with_retry("mock", "model-1", &params).await;
+        // Spawn the test in a background task
+        let handle = tokio::spawn(async move {
+            service.execute_with_retry("mock", "model-1", &params).await
+        });
+
+        // Fast-forward time to complete backoff delays (1s + 2s = 3s total)
+        tokio::time::advance(std::time::Duration::from_secs(3)).await;
+
+        // Wait for the background task to complete
+        let result = handle.await.unwrap();
 
         assert!(result.is_ok());
         let exec_result = result.unwrap();
         assert_eq!(exec_result.model_used, "model-1");
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn test_execute_with_retry_exhaust_retries() {
         // Vendor always fails with retryable error (max_retries = 3)
         let mock_vendor = MockVendor::new_always_fail(
@@ -897,7 +915,16 @@ mod tests {
             stream: false,
         };
 
-        let result = service.execute_with_retry("mock", "model-1", &params).await;
+        // Spawn the test in a background task
+        let handle = tokio::spawn(async move {
+            service.execute_with_retry("mock", "model-1", &params).await
+        });
+
+        // Fast-forward time to complete all backoff delays (1s + 2s + 4s = 7s total)
+        tokio::time::advance(std::time::Duration::from_secs(7)).await;
+
+        // Wait for the background task to complete
+        let result = handle.await.unwrap();
 
         assert!(result.is_err());
         match result {
@@ -1043,7 +1070,7 @@ mod tests {
         assert_eq!(exec_result.model_used, "model-1"); // First fallback succeeded
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn test_execute_fallbacks_second_fallback_succeeds() {
         // First fallback always fails, second succeeds
         let fallback1 = MockVendor::new_always_fail(
@@ -1081,16 +1108,25 @@ mod tests {
 
         let primary_error = ExecutorError::ApiCallFailed("Primary failed".to_string());
 
-        let result = service
-            .execute_fallbacks(&fallback_plans, &params, primary_error)
-            .await;
+        // Spawn the test in a background task
+        let handle = tokio::spawn(async move {
+            service
+                .execute_fallbacks(&fallback_plans, &params, primary_error)
+                .await
+        });
+
+        // Fast-forward time to complete fallback1's retry attempts (1s + 2s + 4s = 7s)
+        tokio::time::advance(std::time::Duration::from_secs(7)).await;
+
+        // Wait for the background task to complete
+        let result = handle.await.unwrap();
 
         assert!(result.is_ok());
         let exec_result = result.unwrap();
         assert_eq!(exec_result.model_used, "model-2"); // Second fallback succeeded
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn test_execute_fallbacks_all_fail_returns_primary_error() {
         // All fallbacks fail
         let fallback1 = MockVendor::new_always_fail(
@@ -1132,9 +1168,18 @@ mod tests {
 
         let primary_error = ExecutorError::ApiCallFailed("Primary failed".to_string());
 
-        let result = service
-            .execute_fallbacks(&fallback_plans, &params, primary_error.clone())
-            .await;
+        // Spawn the test in a background task
+        let handle = tokio::spawn(async move {
+            service
+                .execute_fallbacks(&fallback_plans, &params, primary_error.clone())
+                .await
+        });
+
+        // Fast-forward time to complete both fallbacks' retry attempts (7s + 7s = 14s)
+        tokio::time::advance(std::time::Duration::from_secs(14)).await;
+
+        // Wait for the background task to complete
+        let result = handle.await.unwrap();
 
         assert!(result.is_err());
         // Should return primary error, not fallback errors
@@ -1146,7 +1191,7 @@ mod tests {
         }
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn test_execute_fallbacks_with_retry_logic() {
         // Fallback fails twice then succeeds (tests that fallbacks get retry logic)
         let fallback1 = MockVendor::new_fail_then_succeed(
@@ -1177,9 +1222,18 @@ mod tests {
 
         let primary_error = ExecutorError::ApiCallFailed("Primary failed".to_string());
 
-        let result = service
-            .execute_fallbacks(&fallback_plans, &params, primary_error)
-            .await;
+        // Spawn the test in a background task
+        let handle = tokio::spawn(async move {
+            service
+                .execute_fallbacks(&fallback_plans, &params, primary_error)
+                .await
+        });
+
+        // Fast-forward time to complete backoff delays (1s + 2s = 3s total)
+        tokio::time::advance(std::time::Duration::from_secs(3)).await;
+
+        // Wait for the background task to complete
+        let result = handle.await.unwrap();
 
         assert!(result.is_ok());
         let exec_result = result.unwrap();
