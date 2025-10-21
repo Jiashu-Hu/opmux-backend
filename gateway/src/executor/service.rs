@@ -66,6 +66,24 @@ impl ExecutorService {
         self.vendors.len()
     }
 
+    /// Selects vendor by vendor_id.
+    ///
+    /// # Parameters
+    /// - `vendor_id` - Vendor identifier (e.g., "openai", "anthropic")
+    ///
+    /// # Returns
+    /// Arc reference to the vendor implementation
+    ///
+    /// # Errors
+    /// Returns `UnsupportedVendor` if vendor_id is not found in registry
+    #[allow(dead_code)] // Will be used in Task 8.6.4
+    fn get_vendor(&self, vendor_id: &str) -> Result<Arc<dyn LLMVendor>, ExecutorError> {
+        self.vendors
+            .get(vendor_id)
+            .cloned()
+            .ok_or_else(|| ExecutorError::UnsupportedVendor(vendor_id.to_string()))
+    }
+
     /// Extracts execution parameters from request payload.
     ///
     /// # Parameters
@@ -131,7 +149,70 @@ impl ExecutorService {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::executor::config::OpenAIConfig;
     use serde_json::json;
+
+    // Helper function to create a test ExecutorService with OpenAI vendor
+    fn create_test_executor_service() -> ExecutorService {
+        let config = ExecutorConfig {
+            openai: Some(OpenAIConfig::from_env()),
+            anthropic_api_key: None, // Not used in tests
+            max_retries: 3,
+            timeout_ms: 30000,
+        };
+        ExecutorService::from_config(config).expect("Failed to create test executor")
+    }
+
+    #[test]
+    fn test_get_vendor_success() {
+        let service = create_test_executor_service();
+
+        let result = service.get_vendor("openai");
+        assert!(result.is_ok());
+
+        let vendor = result.unwrap();
+        assert_eq!(vendor.vendor_id(), "openai");
+    }
+
+    #[test]
+    fn test_get_vendor_not_found() {
+        let service = create_test_executor_service();
+
+        let result = service.get_vendor("unknown_vendor");
+        assert!(result.is_err());
+
+        match result {
+            Err(ExecutorError::UnsupportedVendor(vendor_id)) => {
+                assert_eq!(vendor_id, "unknown_vendor");
+            }
+            _ => panic!("Expected UnsupportedVendor error"),
+        }
+    }
+
+    #[test]
+    fn test_get_vendor_case_sensitive() {
+        let service = create_test_executor_service();
+
+        // Vendor IDs are case-sensitive
+        let result = service.get_vendor("OpenAI"); // Wrong case
+        assert!(result.is_err());
+
+        match result {
+            Err(ExecutorError::UnsupportedVendor(vendor_id)) => {
+                assert_eq!(vendor_id, "OpenAI");
+            }
+            _ => panic!("Expected UnsupportedVendor error"),
+        }
+    }
+
+    #[test]
+    fn test_vendor_count() {
+        let service = create_test_executor_service();
+
+        // Should have 1 vendor (OpenAI) if OPENAI_API_KEY is set
+        // Otherwise, from_config would have failed
+        assert_eq!(service.vendor_count(), 1);
+    }
 
     #[test]
     fn test_extract_params_with_all_fields() {
