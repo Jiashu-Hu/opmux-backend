@@ -150,14 +150,14 @@ Based on the complete system design (requirements.md + design.md), this implemen
 
   **Subtasks:**
 
-  - [ ] 8.6.1 Modify ExecutorService Core Structure
+  - [x] 8.6.1 Modify ExecutorService Core Structure
 
     - **Modify** existing struct (not rewrite): Add `vendors` and `config` fields
     - Replace `new()` with `from_config()` method for auto-initialization
     - Add `vendor_count()` helper method
     - Add `NoVendorsConfigured` error variant to `executor/error.rs`
     - Keep existing `execute()` method signature
-    - _Status: Not started_
+    - _Status: ✅ Completed (commit 7f5205d)_
 
   - [ ] 8.6.2 Implement Parameter Extraction
 
