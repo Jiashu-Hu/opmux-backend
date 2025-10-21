@@ -2,9 +2,7 @@
 // This file centralizes all mock data used during development
 // In production, this will be replaced with real service responses
 
-use super::repository::{
-    ContextData, LLMExecutionResult, RoutePlan, RouterServiceResponse,
-};
+use super::repository::{ContextData, RoutePlan, RouterServiceResponse};
 
 /// Mock data provider for development and testing.
 ///
@@ -47,33 +45,6 @@ impl MockDataProvider {
                 fallback_plans: vec![], // Empty in MVP
             },
             optimization_reason: "Selected gpt-4 for best quality".to_string(),
-        }
-    }
-
-    /// Returns mock LLM execution result (simple).
-    ///
-    /// # Parameters
-    /// - `plan` - Routing plan from Router Service
-    /// - `payload` - Request payload
-    ///
-    /// # Returns
-    /// Mock LLM execution result with fixed cost
-    pub fn get_mock_llm_execution(
-        plan: &RoutePlan,
-        payload: &serde_json::Value,
-    ) -> LLMExecutionResult {
-        let prompt = payload
-            .get("prompt")
-            .and_then(|v| v.as_str())
-            .unwrap_or("default prompt");
-
-        LLMExecutionResult {
-            ai_response: format!(
-                "This is a mock AI response for: '{}' using model: {}",
-                prompt, plan.model_id
-            ),
-            model_used: plan.model_id.clone(),
-            actual_cost: 0.025, // Simple fixed value
         }
     }
 }

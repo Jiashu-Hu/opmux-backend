@@ -1,7 +1,7 @@
 // Repository Layer - gRPC client management & mocks
 
 use super::{error::IngressError, mockdata::MockDataProvider};
-use crate::executor::service::ExecutorService;
+use crate::executor::{models::ExecutionResult, service::ExecutorService};
 use std::sync::Arc;
 
 /// User conversation context from Memory Service.
@@ -31,19 +31,6 @@ pub struct RouterServiceResponse {
     pub optimized_plan: RoutePlan,
     /// Why this strategy was chosen (for debugging/monitoring)
     pub optimization_reason: String,
-}
-
-/// Actual LLM execution result (temporary mock).
-///
-/// This simulates what the future Executor Layer will return.
-#[derive(Debug, Clone)]
-pub struct LLMExecutionResult {
-    /// Generated AI response content
-    pub ai_response: String,
-    /// Actual model used
-    pub model_used: String,
-    /// Actual cost in USD
-    pub actual_cost: f64,
 }
 
 /// Repository for microservice communication and data access.
@@ -108,7 +95,7 @@ impl IngressRepository {
     /// - `payload` - Request payload to send to LLM
     ///
     /// # Returns
-    /// Actual LLM execution result with response content and metrics
+    /// ExecutionResult with response content, token counts, and cost metrics
     ///
     /// # Errors
     /// Returns ExecutionFailed if LLM execution fails (automatically converted from ExecutorError)
@@ -116,16 +103,13 @@ impl IngressRepository {
         &self,
         plan: &RoutePlan,
         payload: &serde_json::Value,
-    ) -> Result<LLMExecutionResult, IngressError> {
+    ) -> Result<ExecutionResult, IngressError> {
         // Execute via ExecutorService with retry and fallback logic
-        let execution_result = self.executor_service.execute(plan, payload).await?;
-
-        // Convert ExecutionResult → LLMExecutionResult
-        Ok(LLMExecutionResult {
-            ai_response: execution_result.content,
-            model_used: execution_result.model_used,
-            actual_cost: execution_result.total_cost,
-        })
+        // No conversion needed - directly return ExecutionResult
+        self.executor_service
+            .execute(plan, payload)
+            .await
+            .map_err(Into::into)
     }
 
     /// Updates conversation context in Memory Service.

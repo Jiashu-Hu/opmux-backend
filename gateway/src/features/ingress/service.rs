@@ -1,9 +1,7 @@
 // Service Layer - Business logic and orchestration
 
 use super::{
-    constants::{AI_RESPONSE_ROLE, FINISH_REASON_STOP},
-    error::IngressError,
-    repository::IngressRepository,
+    constants::AI_RESPONSE_ROLE, error::IngressError, repository::IngressRepository,
 };
 use crate::executor::service::ExecutorService;
 use serde::{Deserialize, Serialize};
@@ -117,7 +115,7 @@ impl IngressService {
 
         // Step 5: Update conversation context in Memory Service
         self.repository
-            .update_context(&user_id, &request.prompt, &llm_result.ai_response)
+            .update_context(&user_id, &request.prompt, &llm_result.content)
             .await
             .map_err(|_| IngressError::ContextUpdateFailed)?;
 
@@ -126,12 +124,12 @@ impl IngressService {
 
         Ok(IngressResponse {
             response: AIResponse {
-                content: llm_result.ai_response,
+                content: llm_result.content,
                 role: AI_RESPONSE_ROLE.to_string(),
-                finish_reason: Some(FINISH_REASON_STOP.to_string()),
+                finish_reason: Some(llm_result.finish_reason),
             },
             model_used: llm_result.model_used,
-            cost: llm_result.actual_cost,
+            cost: llm_result.total_cost,
             processing_time_ms,
         })
     }
