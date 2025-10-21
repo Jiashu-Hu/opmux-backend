@@ -1,6 +1,8 @@
 // Repository Layer - gRPC client management & mocks
 
 use super::{error::IngressError, mockdata::MockDataProvider};
+use crate::executor::service::ExecutorService;
+use std::sync::Arc;
 
 /// User conversation context from Memory Service.
 #[derive(Debug, Clone)]
@@ -47,13 +49,19 @@ pub struct LLMExecutionResult {
 /// Repository for microservice communication and data access.
 ///
 /// Manages gRPC clients for Memory, Router, Rewrite, and Validation services.
-/// Currently uses mock implementations for development.
-pub struct IngressRepository;
+/// Uses ExecutorService for LLM execution.
+pub struct IngressRepository {
+    /// Executor service for LLM execution with retry and fallback logic
+    executor_service: Arc<ExecutorService>,
+}
 
 impl IngressRepository {
-    /// Creates a new repository instance.
-    pub fn new() -> Self {
-        Self
+    /// Creates a new repository instance with ExecutorService dependency.
+    ///
+    /// # Parameters
+    /// - `executor_service` - Shared ExecutorService instance for LLM execution
+    pub fn new(executor_service: Arc<ExecutorService>) -> Self {
+        Self { executor_service }
     }
 
     /// Retrieves user conversation context from Memory Service.
@@ -90,10 +98,10 @@ impl IngressRepository {
         Ok(MockDataProvider::get_mock_router_response())
     }
 
-    /// Executes LLM call based on routing plan (temporary mock).
+    /// Executes LLM call based on routing plan using ExecutorService.
     ///
-    /// This is a temporary method that simulates Executor Layer behavior.
-    /// Will be replaced by actual Executor implementation in the future.
+    /// Delegates to ExecutorService which handles retry logic, fallback execution,
+    /// and vendor-specific API calls.
     ///
     /// # Parameters
     /// - `plan` - Routing plan from Router Service
@@ -101,14 +109,23 @@ impl IngressRepository {
     ///
     /// # Returns
     /// Actual LLM execution result with response content and metrics
+    ///
+    /// # Errors
+    /// Returns ExecutionFailed if LLM execution fails (automatically converted from ExecutorError)
     pub async fn execute_llm_call(
         &self,
         plan: &RoutePlan,
         payload: &serde_json::Value,
     ) -> Result<LLMExecutionResult, IngressError> {
-        // Mock implementation - simulates Executor Layer
-        // Real version will be in gateway/src/executor/
-        Ok(MockDataProvider::get_mock_llm_execution(plan, payload))
+        // Execute via ExecutorService with retry and fallback logic
+        let execution_result = self.executor_service.execute(plan, payload).await?;
+
+        // Convert ExecutionResult → LLMExecutionResult
+        Ok(LLMExecutionResult {
+            ai_response: execution_result.content,
+            model_used: execution_result.model_used,
+            actual_cost: execution_result.total_cost,
+        })
     }
 
     /// Updates conversation context in Memory Service.
@@ -151,10 +168,4 @@ impl IngressRepository {
     //     // gRPC failures mapped to RequestOrchestrationFailed
     //     unimplemented!("RewriteService not yet implemented")
     // }
-}
-
-impl Default for IngressRepository {
-    fn default() -> Self {
-        Self::new()
-    }
 }

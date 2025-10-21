@@ -5,7 +5,9 @@ use super::{
     error::IngressError,
     repository::IngressRepository,
 };
+use crate::executor::service::ExecutorService;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
 /// Incoming AI routing request from clients.
 #[derive(Deserialize)]
@@ -49,10 +51,13 @@ pub struct IngressService {
 }
 
 impl IngressService {
-    /// Creates a new ingress service instance.
-    pub fn new() -> Self {
+    /// Creates a new ingress service instance with ExecutorService dependency.
+    ///
+    /// # Parameters
+    /// - `executor_service` - Shared ExecutorService instance for LLM execution
+    pub fn new(executor_service: Arc<ExecutorService>) -> Self {
         Self {
-            repository: IngressRepository::new(),
+            repository: IngressRepository::new(executor_service),
         }
     }
 
@@ -104,12 +109,11 @@ impl IngressService {
             .await
             .map_err(|_| IngressError::RequestOrchestrationFailed)?;
 
-        // Step 4: Execute LLM call based on routing plan (temporary mock)
+        // Step 4: Execute LLM call via ExecutorService with retry and fallback logic
         let llm_result = self
             .repository
             .execute_llm_call(&_router_response.optimized_plan, &payload)
-            .await
-            .map_err(|_| IngressError::RequestOrchestrationFailed)?;
+            .await?; // Use ? operator for automatic ExecutorError → IngressError conversion
 
         // Step 5: Update conversation context in Memory Service
         self.repository
@@ -130,11 +134,5 @@ impl IngressService {
             cost: llm_result.actual_cost,
             processing_time_ms,
         })
-    }
-}
-
-impl Default for IngressService {
-    fn default() -> Self {
-        Self::new()
     }
 }

@@ -4,8 +4,12 @@ use super::{
     error::IngressError,
     service::{IngressRequest, IngressResponse, IngressService},
 };
-use crate::features::auth::AuthContext;
+use crate::{
+    executor::config::ExecutorConfig, executor::service::ExecutorService,
+    features::auth::AuthContext,
+};
 use axum::{extract::Json, response::Json as ResponseJson};
+use std::sync::Arc;
 
 /// HTTP handler for AI routing ingress endpoint.
 ///
@@ -33,8 +37,16 @@ pub async fn ingress_handler(
         ));
     }
 
-    // Create service instance
-    let service = IngressService::new();
+    // TODO: This should be injected via Axum state in Task 8.6.8
+    // For now, create ExecutorService on each request (not ideal but functional)
+    let executor_config = ExecutorConfig::from_env();
+    let executor_service =
+        Arc::new(ExecutorService::from_config(executor_config).map_err(|e| {
+            IngressError::InvalidRequest(format!("Executor initialization failed: {}", e))
+        })?);
+
+    // Create service instance with ExecutorService dependency
+    let service = IngressService::new(executor_service);
 
     // Use client_id from authentication context
     let user_id = auth_context.client_id;
