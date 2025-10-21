@@ -201,14 +201,14 @@ Based on the complete system design (requirements.md + design.md), this implemen
     - Return ExecutionResult
     - _Status: ✅ Completed (commit c3e7646) - Integration complete_
 
-  - [ ] 8.6.7 Integrate with IngressRepository
+  - [x] 8.6.7 Integrate with IngressRepository
 
     - Update IngressError to wrap ExecutorError (use `#[from]` attribute)
     - Update IngressRepository to accept ExecutorService dependency
     - Replace mock `execute_llm_call()` with real ExecutorService call
     - Convert ExecutionResult → LLMExecutionResult
     - Use `?` operator for automatic error conversion
-    - _Status: Not started_
+    - _Status: ✅ Completed - Integration complete_
 
   - [ ] 8.6.8 Initialize in main.rs
 
