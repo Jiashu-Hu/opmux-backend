@@ -47,6 +47,10 @@ pub enum ExecutorError {
     /// JSON parsing error.
     #[error("JSON parsing error: {0}")]
     JsonError(String),
+
+    /// No vendors configured in ExecutorConfig.
+    #[error("No LLM vendors configured")]
+    NoVendorsConfigured,
 }
 
 impl IntoResponse for ExecutorError {
@@ -90,6 +94,11 @@ impl IntoResponse for ExecutorError {
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "internal_error",
                 "An internal error occurred".to_string(),
+            ),
+            Self::NoVendorsConfigured => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "no_vendors_configured",
+                "No LLM vendors are configured".to_string(),
             ),
         };
 

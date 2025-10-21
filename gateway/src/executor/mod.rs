@@ -30,11 +30,15 @@
 //! # Usage
 //!
 //! ```rust,no_run
-//! use gateway::executor::{ExecutorService, ExecutionRequest};
+//! use gateway::executor::{ExecutorService, ExecutorConfig};
 //! use gateway::features::ingress::repository::RoutePlan;
 //!
 //! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-//! let executor = ExecutorService::new();
+//! // Load configuration from environment
+//! let config = ExecutorConfig::from_env();
+//!
+//! // Create ExecutorService (auto-initializes vendors)
+//! let executor = ExecutorService::from_config(config)?;
 //!
 //! let plan = RoutePlan {
 //!     vendor_id: "openai".to_string(),
