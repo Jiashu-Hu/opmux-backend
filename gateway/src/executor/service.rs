@@ -16,8 +16,7 @@ use std::sync::Arc;
 pub struct ExecutorService {
     /// Vendor registry: vendor_id → vendor instance
     vendors: HashMap<String, Arc<dyn LLMVendor>>,
-    /// Executor configuration (will be used in Task 8.6.4 for retry logic)
-    #[allow(dead_code)]
+    /// Executor configuration for retry logic and timeout settings
     config: ExecutorConfig,
 }
 
@@ -105,7 +104,6 @@ impl ExecutorService {
     /// - Model not supported
     /// - All retry attempts exhausted
     /// - Non-retryable error occurs
-    #[allow(dead_code)] // Will be used in Task 8.6.6
     async fn execute_with_retry(
         &self,
         vendor_id: &str,
@@ -235,7 +233,6 @@ impl ExecutorService {
     ///
     /// # Errors
     /// Returns primary error if no fallbacks exist or all fallbacks fail
-    #[allow(dead_code)] // Will be used in Task 8.6.6
     async fn execute_fallbacks(
         &self,
         fallback_plans: &[RoutePlan],
@@ -310,7 +307,6 @@ impl ExecutorService {
     /// Returns `InvalidPayload` if:
     /// - `messages` field is missing or invalid
     /// - Required fields have wrong types
-    #[allow(dead_code)] // Will be used in Task 8.6.6
     fn extract_params(
         payload: &serde_json::Value,
     ) -> Result<ExecutionParams, ExecutorError> {
@@ -344,19 +340,65 @@ impl ExecutorService {
 
     /// Executes LLM call based on routing plan.
     ///
+    /// # Flow
+    /// 1. Extract parameters from payload
+    /// 2. Try primary plan with retry logic
+    /// 3. On failure, try fallback plans sequentially
+    /// 4. Return result or error
+    ///
     /// # Parameters
     /// - `plan` - Routing plan from Router Service
     /// - `payload` - Original request payload
     ///
     /// # Returns
     /// Execution result with AI response and metrics
+    ///
+    /// # Errors
+    /// Returns error if:
+    /// - Payload is invalid
+    /// - Primary execution fails and no fallbacks succeed
     pub async fn execute(
         &self,
-        _plan: &RoutePlan,
-        _payload: &serde_json::Value,
+        plan: &RoutePlan,
+        payload: &serde_json::Value,
     ) -> Result<ExecutionResult, ExecutorError> {
-        // Implementation will be added in Task 8.6.6
-        todo!("ExecutorService::execute not yet implemented")
+        // Extract parameters once (shared across retries and fallbacks)
+        let params = Self::extract_params(payload)?;
+
+        tracing::info!(
+            "Executing LLM call: vendor={}, model={}",
+            plan.vendor_id,
+            plan.model_id
+        );
+
+        // Try primary plan with retry logic
+        match self
+            .execute_with_retry(&plan.vendor_id, &plan.model_id, &params)
+            .await
+        {
+            Ok(result) => {
+                tracing::info!(
+                    "Primary execution succeeded: vendor={}, model={}, tokens={}, cost=${}",
+                    plan.vendor_id,
+                    plan.model_id,
+                    result.prompt_tokens + result.completion_tokens,
+                    result.total_cost
+                );
+                Ok(result)
+            }
+            Err(primary_error) => {
+                tracing::warn!(
+                    "Primary execution failed: vendor={}, model={}, error={:?}",
+                    plan.vendor_id,
+                    plan.model_id,
+                    primary_error
+                );
+
+                // Try fallback plans
+                self.execute_fallbacks(&plan.fallback_plans, &params, primary_error)
+                    .await
+            }
+        }
     }
 }
 
