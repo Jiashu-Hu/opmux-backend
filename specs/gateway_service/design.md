@@ -110,6 +110,17 @@ gateway/
 │   │       ├── mod.rs
 │   │       ├── handler.rs      # Health check endpoints
 │   │       └── service.rs      # Health check logic
+│   ├── executor/               # Executor Layer - LLM API execution
+│   │   ├── mod.rs              # Module exports
+│   │   ├── config.rs           # Vendor configuration (API keys, pricing, models)
+│   │   ├── error.rs            # Executor-specific errors
+│   │   ├── models.rs           # Execution request/result models
+│   │   ├── service.rs          # Executor orchestration service
+│   │   └── vendors/            # Vendor-specific implementations
+│   │       ├── mod.rs
+│   │       ├── traits.rs       # LLMVendor trait definition
+│   │       ├── openai.rs       # OpenAI Chat Completions API
+│   │       └── anthropic.rs    # Anthropic Messages API (future)
 │   ├── middleware/             # HTTP middleware
 │   │   ├── mod.rs
 │   │   ├── auth.rs            # Unified authentication middleware
@@ -244,6 +255,154 @@ gateway/
 - Mock contexts clearly identifiable in logs
 - Automatic security hardening in production environments
 
+## Executor Layer Design
+
+### Overview
+
+The Executor Layer is an internal module within Gateway (not a separate microservice) responsible
+for executing actual LLM API calls based on routing decisions from RouterService. It abstracts
+vendor-specific implementations behind a unified interface.
+
+### Architecture
+
+```
+ExecutorService (Orchestration)
+    ↓
+LLMVendor Trait (Unified Interface)
+    ↓
+Vendor Implementations (OpenAI, Anthropic, etc.)
+    ↓
+Vendor APIs (HTTP/REST)
+```
+
+### Components
+
+#### 1. Configuration Layer (`config.rs`)
+
+**Responsibility**: Store and load configuration data only (no business logic)
+
+- `ModelPricing`: Stores pricing per 1000 tokens (prompt + completion)
+- `OpenAIConfig`: OpenAI vendor configuration (API key, base URL, timeout, models, pricing)
+- `ExecutorConfig`: Top-level executor configuration
+
+**Environment Variables**:
+
+- `OPENAI_API_KEY`: OpenAI API key (required)
+- `OPENAI_BASE_URL`: Custom endpoint (optional, default: https://api.openai.com/v1)
+- `OPENAI_TIMEOUT_MS`: Request timeout (optional, default: 30000ms)
+- `EXECUTOR_TIMEOUT_MS`: Global executor timeout (optional, default: 30000ms)
+- `EXECUTOR_MAX_RETRIES`: Max retry attempts (optional, default: 3)
+
+**Design Principle**: Configuration layer only handles data storage, loading, and validation. All
+business logic (model support checks, cost calculations) is in vendor implementations.
+
+#### 2. Vendor Trait (`vendors/traits.rs`)
+
+**LLMVendor Trait**: Unified interface for all LLM vendors
+
+```rust
+pub trait LLMVendor: Send + Sync {
+    async fn execute(&self, model: &str, params: ExecutionParams) -> Result<ExecutionResult, ExecutorError>;
+    fn vendor_id(&self) -> &str;
+    fn supports_model(&self, model: &str) -> bool;
+    fn calculate_cost(&self, prompt_tokens: i64, completion_tokens: i64, model: &str) -> f64;
+}
+```
+
+#### 3. Vendor Implementations
+
+**OpenAIVendor** (`vendors/openai.rs`):
+
+- Integrates with OpenAI Chat Completions API
+- Supports models: gpt-4, gpt-4-turbo, gpt-3.5-turbo
+- Handles API authentication, request/response serialization
+- Calculates costs based on configurable pricing
+- Business logic: model support checks, cost calculations
+
+**Future Vendors**:
+
+- AnthropicVendor: Claude models (claude-3-opus, claude-3-sonnet)
+- CohereVendor: Command models
+
+#### 4. Service Layer (`service.rs`)
+
+**ExecutorService**: Orchestrates LLM execution workflow
+
+- Vendor registry and selection
+- Parameter extraction from original_payload
+- Error handling and retry logic
+- Streaming response support (future)
+
+**Status**: Placeholder implementation, not yet complete
+
+#### 5. Error Handling (`error.rs`)
+
+**ExecutorError**: Business operation focused errors
+
+- `UnsupportedVendor`: Vendor not configured
+- `UnsupportedModel`: Model not supported by vendor
+- `InvalidPayload`: Request format invalid
+- `ApiCallFailed`: LLM API call failed
+- `RateLimitExceeded`: Vendor rate limit hit
+- `AuthenticationFailed`: Invalid API key
+- `TimeoutError`: Request timeout
+- `NetworkError`: Network connectivity issues
+
+### Integration with Ingress Flow
+
+```
+Client Request
+    ↓
+Ingress Handler
+    ↓
+Ingress Service
+    ↓
+Repository.optimize_route() → RouterService (gRPC)
+    ↓ (returns RoutePlan: vendor_id, model_id)
+Repository.execute_llm_call() → ExecutorService
+    ↓
+ExecutorService.execute(plan, payload)
+    ↓
+Select vendor by vendor_id → OpenAIVendor
+    ↓
+Extract params from payload → ExecutionParams
+    ↓
+OpenAIVendor.execute(model, params)
+    ↓
+OpenAI API (HTTP)
+    ↓
+ExecutionResult (content, tokens, cost)
+    ↓
+Return to client
+```
+
+### Configuration vs Business Logic Separation
+
+**Configuration Layer** (`config.rs`):
+
+- ✅ Load from environment variables
+- ✅ Store configuration data (API keys, URLs, pricing)
+- ✅ Validate configuration completeness
+- ✅ Provide default values
+- ❌ NO business logic (model checks, cost calculations)
+
+**Vendor Layer** (`vendors/*.rs`):
+
+- ✅ Business logic (model support checks)
+- ✅ Cost calculations based on configuration
+- ✅ API integration and error handling
+- ✅ Access configuration data directly (e.g., `self.config.pricing`)
+
+### Current Implementation Status
+
+- ✅ Configuration system complete
+- ✅ OpenAIVendor structure implemented
+- ✅ LLMVendor trait defined
+- ✅ Error handling complete
+- ⏸️ ExecutorService orchestration (placeholder)
+- ⏸️ Real API testing (not yet tested with actual API key)
+- ⏸️ Integration with ingress service (deferred)
+
 ## Gateway Mediation Pattern
 
 ### Service Coordination Strategy
@@ -251,6 +410,7 @@ gateway/
 - Gateway acts as the single point of coordination for all microservices
 - All inter-service communication flows through Gateway
 - Context data retrieved from Memory Service and passed to Router Service
+- Executor Layer executes LLM calls based on RouterService decisions
 - Unified error handling and retry logic across all service interactions
 - Complete request tracing and monitoring through centralized flow
 

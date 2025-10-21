@@ -123,6 +123,46 @@ Based on the complete system design (requirements.md + design.md), this implemen
   - _Requirement: Requirement 2 - Microservice Coordination_
   - _Status: Interface designed, implementation deferred to post-MVP_
 
+## Iteration 3.5: Executor Layer Implementation
+
+- [x] 8.5 Executor Layer Foundation (Configuration System)
+
+  - ✅ Created executor module structure (config, error, models, service, vendors)
+  - ✅ Implemented ModelPricing and OpenAIConfig for vendor configuration
+  - ✅ Added environment variable support (OPENAI_API_KEY, OPENAI_BASE_URL, OPENAI_TIMEOUT_MS)
+  - ✅ Implemented configuration validation and loading
+  - ✅ Designed LLMVendor trait for unified vendor interface
+  - ✅ Implemented OpenAIVendor with Chat Completions API integration
+  - ✅ Added cost calculation based on configurable pricing
+  - ✅ Separated configuration (data storage) from business logic (vendor implementation)
+  - ✅ Updated .env.example with Executor Layer configuration
+  - ⏸️ ExecutorService orchestration layer (placeholder, not yet implemented)
+  - ⏸️ Real LLM API calls (OpenAIVendor structure ready, execute() not tested)
+  - ⏸️ Integration with ingress service (deferred)
+  - _Requirement: Requirement 2 - Microservice Coordination (Executor Layer)_
+  - _Status: Configuration system complete, vendor implementation ready for testing_
+
+- [ ] 8.6 Executor Layer Service Integration (Next Step)
+
+  - Implement ExecutorService orchestration layer
+  - Add vendor registry and vendor selection logic
+  - Integrate ExecutorService with ingress repository layer
+  - Replace mock execute_llm_call() with real ExecutorService calls
+  - Add parameter extraction from original_payload
+  - Test real OpenAI API calls with actual API key
+  - Add error handling and retry logic
+  - _Requirement: Requirement 2 - Microservice Coordination (Executor Layer)_
+  - _Status: Not started_
+
+- [ ] 8.7 Additional Vendor Support (Future)
+
+  - Implement AnthropicVendor (Claude models)
+  - Implement CohereVendor (Command models)
+  - Add vendor-specific error handling
+  - Support streaming responses (SSE/WebSocket)
+  - _Requirement: Requirement 2 - Microservice Coordination (Executor Layer)_
+  - _Status: Not started_
+
 - [ ] 9. Validation Service Integration (Optional)
   - Add gRPC client for Validation Service
   - Implement request validation in ingress flow
