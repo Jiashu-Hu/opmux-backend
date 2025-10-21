@@ -10,7 +10,7 @@ use serde_json::json;
 ///
 /// Each variant represents a specific failure scenario during LLM execution,
 /// providing clear context for debugging and monitoring.
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, Clone, thiserror::Error)]
 pub enum ExecutorError {
     /// Vendor is not supported or not configured.
     #[error("Unsupported vendor: {0}")]

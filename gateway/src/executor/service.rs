@@ -216,6 +216,88 @@ impl ExecutorService {
         )
     }
 
+    /// Executes fallback plans sequentially.
+    ///
+    /// # Flow
+    /// 1. Check if fallback plans exist
+    /// 2. Try each fallback plan sequentially
+    /// 3. Each fallback gets full retry logic via execute_with_retry()
+    /// 4. Return on first successful fallback
+    /// 5. Return primary error if all fallbacks fail
+    ///
+    /// # Parameters
+    /// - `fallback_plans` - List of fallback routing plans
+    /// - `params` - Execution parameters (shared across all attempts)
+    /// - `primary_error` - Error from primary execution attempt
+    ///
+    /// # Returns
+    /// Execution result from first successful fallback
+    ///
+    /// # Errors
+    /// Returns primary error if no fallbacks exist or all fallbacks fail
+    #[allow(dead_code)] // Will be used in Task 8.6.6
+    async fn execute_fallbacks(
+        &self,
+        fallback_plans: &[RoutePlan],
+        params: &ExecutionParams,
+        primary_error: ExecutorError,
+    ) -> Result<ExecutionResult, ExecutorError> {
+        // No fallbacks available, return primary error
+        if fallback_plans.is_empty() {
+            tracing::warn!("No fallback plans available, returning primary error");
+            return Err(primary_error);
+        }
+
+        tracing::info!(
+            "Primary execution failed, attempting {} fallback plans",
+            fallback_plans.len()
+        );
+
+        // Try each fallback sequentially
+        for (index, fallback) in fallback_plans.iter().enumerate() {
+            tracing::info!(
+                "Trying fallback {}/{}: vendor={}, model={}",
+                index + 1,
+                fallback_plans.len(),
+                fallback.vendor_id,
+                fallback.model_id
+            );
+
+            match self
+                .execute_with_retry(&fallback.vendor_id, &fallback.model_id, params)
+                .await
+            {
+                Ok(result) => {
+                    tracing::info!(
+                        "Fallback {} succeeded: vendor={}, model={}",
+                        index + 1,
+                        fallback.vendor_id,
+                        fallback.model_id
+                    );
+                    return Ok(result);
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        "Fallback {} failed: vendor={}, model={}, error={:?}",
+                        index + 1,
+                        fallback.vendor_id,
+                        fallback.model_id,
+                        e
+                    );
+                    // Continue to next fallback
+                    continue;
+                }
+            }
+        }
+
+        // All fallbacks exhausted, return primary error
+        tracing::error!(
+            "All {} fallback plans failed, returning primary error",
+            fallback_plans.len()
+        );
+        Err(primary_error)
+    }
+
     /// Extracts execution parameters from request payload.
     ///
     /// # Parameters
@@ -393,6 +475,32 @@ mod tests {
         let error =
             ExecutorError::UnsupportedModel("openai".to_string(), "gpt-5".to_string());
         assert!(!ExecutorService::is_retryable_error(&error));
+    }
+
+    #[tokio::test]
+    async fn test_execute_fallbacks_empty_list() {
+        let service = create_test_executor_service();
+        let params = ExecutionParams {
+            messages: vec![],
+            temperature: None,
+            max_tokens: None,
+            top_p: None,
+            stream: false,
+        };
+        let primary_error = ExecutorError::ApiCallFailed("Primary failed".to_string());
+
+        let result = service
+            .execute_fallbacks(&[], &params, primary_error.clone())
+            .await;
+
+        assert!(result.is_err());
+        // Should return the primary error when no fallbacks exist
+        match result {
+            Err(ExecutorError::ApiCallFailed(msg)) => {
+                assert_eq!(msg, "Primary failed");
+            }
+            _ => panic!("Expected ApiCallFailed error"),
+        }
     }
 
     #[test]
