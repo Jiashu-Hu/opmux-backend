@@ -1,6 +1,8 @@
 //! Common traits for LLM vendor implementations.
 
-use crate::executor::{error::ExecutorError, models::ExecutionParams, models::ExecutionResult};
+use crate::executor::{
+    error::ExecutorError, models::ExecutionParams, models::ExecutionResult,
+};
 use async_trait::async_trait;
 
 /// Trait for LLM vendor implementations.
@@ -38,6 +40,10 @@ pub trait LLMVendor: Send + Sync {
     ///
     /// # Returns
     /// Total cost in USD
-    fn calculate_cost(&self, prompt_tokens: i64, completion_tokens: i64, model: &str) -> f64;
+    fn calculate_cost(
+        &self,
+        prompt_tokens: i64,
+        completion_tokens: i64,
+        model: &str,
+    ) -> f64;
 }
-

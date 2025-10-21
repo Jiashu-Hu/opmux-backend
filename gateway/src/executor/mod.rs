@@ -60,7 +60,7 @@ pub mod service;
 pub mod vendors;
 
 // Re-export commonly used types
+pub use config::{ExecutorConfig, ModelPricing, OpenAIConfig};
 pub use error::ExecutorError;
 pub use models::{ExecutionParams, ExecutionRequest, ExecutionResult};
 pub use service::ExecutorService;
-

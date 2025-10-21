@@ -6,8 +6,7 @@
 pub mod traits;
 
 // Vendor implementations will be added in later tasks
-// pub mod openai;
+pub mod openai;
 // pub mod anthropic;
 
 pub use traits::LLMVendor;
-
