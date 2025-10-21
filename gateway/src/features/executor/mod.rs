@@ -1,0 +1,39 @@
+//! Executor feature - LLM execution with retry and fallback logic.
+//!
+//! This feature provides LLM execution capabilities with business logic
+//! for retry, fallback, and parameter extraction.
+//!
+//! # Architecture
+//!
+//! - **Service Layer** - Business logic: retry, fallback, parameter extraction
+//! - **Repository Layer** - Data access: vendor management, direct LLM API calls
+//!
+//! # Usage
+//!
+//! ```rust,ignore
+//! use gateway::features::executor::{ExecutorService, ExecutorConfig};
+//!
+//! let config = ExecutorConfig::from_env();
+//! let service = ExecutorService::from_config(config)?;
+//! let result = service.execute(&plan, &payload).await?;
+//! ```
+
+pub mod config;
+pub mod error;
+pub mod models;
+pub mod repository;
+pub mod service;
+pub mod vendors;
+
+// Re-export commonly used types
+pub use config::ExecutorConfig;
+pub use error::ExecutorError;
+pub use models::{ExecutionParams, ExecutionResult, Message};
+pub use repository::ExecutorRepository;
+pub use service::ExecutorService;
+
+// Tests in separate files
+#[cfg(test)]
+mod repository_tests;
+#[cfg(test)]
+mod service_tests;

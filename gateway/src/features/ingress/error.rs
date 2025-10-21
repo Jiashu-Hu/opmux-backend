@@ -4,7 +4,7 @@ use axum::{
 };
 use serde_json::json;
 
-use crate::executor::error::ExecutorError;
+use crate::features::executor::error::ExecutorError;
 
 /// Errors for ingress AI routing processing operations.
 ///

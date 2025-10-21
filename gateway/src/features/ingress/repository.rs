@@ -1,7 +1,7 @@
 // Repository Layer - gRPC client management & mocks
 
 use super::{error::IngressError, mockdata::MockDataProvider};
-use crate::executor::{models::ExecutionResult, service::ExecutorService};
+use crate::features::executor::{models::ExecutionResult, service::ExecutorService};
 use std::sync::Arc;
 
 /// User conversation context from Memory Service.

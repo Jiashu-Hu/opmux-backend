@@ -1,6 +1,6 @@
 //! Common traits for LLM vendor implementations.
 
-use crate::executor::{
+use crate::features::executor::{
     error::ExecutorError, models::ExecutionParams, models::ExecutionResult,
 };
 use async_trait::async_trait;

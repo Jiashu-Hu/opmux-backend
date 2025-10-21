@@ -4,9 +4,9 @@ use super::{
     error::IngressError,
     service::{IngressRequest, IngressResponse, IngressService},
 };
-use crate::{
-    executor::config::ExecutorConfig, executor::service::ExecutorService,
-    features::auth::AuthContext,
+use crate::features::{
+    auth::AuthContext, executor::config::ExecutorConfig,
+    executor::service::ExecutorService,
 };
 use axum::{extract::Json, response::Json as ResponseJson};
 use std::sync::Arc;

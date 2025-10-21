@@ -2,7 +2,7 @@
 //!
 //! Integrates with OpenAI Chat Completions API for LLM execution.
 
-use crate::executor::{
+use crate::features::executor::{
     config::OpenAIConfig,
     error::ExecutorError,
     models::{ExecutionParams, ExecutionResult, Message},

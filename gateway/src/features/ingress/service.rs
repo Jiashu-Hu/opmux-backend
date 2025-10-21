@@ -3,7 +3,7 @@
 use super::{
     constants::AI_RESPONSE_ROLE, error::IngressError, repository::IngressRepository,
 };
-use crate::executor::service::ExecutorService;
+use crate::features::executor::service::ExecutorService;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
