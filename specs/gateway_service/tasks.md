@@ -142,11 +142,11 @@ Based on the complete system design (requirements.md + design.md), this implemen
   - _Requirement: Requirement 2 - Microservice Coordination (Executor Layer)_
   - _Status: Configuration system complete, vendor implementation ready for testing_
 
-- [ ] 8.6 Executor Layer Service Integration (Current Task)
+- [x] 8.6 Executor Layer Service Integration
 
   - Implement ExecutorService orchestration layer with retry and fallback logic
   - _Requirement: Requirement 2 - Microservice Coordination (Executor Layer)_
-  - _Status: In progress - Design complete, implementation next_
+  - _Status: ✅ Completed - All subtasks finished, 28 tests passing_
 
   **Subtasks:**
 
@@ -210,21 +210,24 @@ Based on the complete system design (requirements.md + design.md), this implemen
     - Use `?` operator for automatic error conversion
     - _Status: ✅ Completed - Integration complete_
 
-  - [ ] 8.6.8 Initialize in main.rs
+  - [x] 8.6.8 Initialize in main.rs
 
     - Load ExecutorConfig from environment
     - Create ExecutorService instance
-    - Pass ExecutorService to IngressRepository
+    - Pass ExecutorService to IngressRepository via AppState
     - Add initialization logging
-    - _Status: Not started_
+    - Implement AppState pattern for scalability
+    - Implement graceful error handling (std::process::exit)
+    - Move AppState to lib.rs to prevent feature coupling
+    - _Status: ✅ Completed (commits 1ba5aa6, ee3b022, 8910ebd)_
 
-  - [ ] 8.6.9 Add Unit Tests
+  - [x] 8.6.9 Add Unit Tests
 
-    - Test vendor selection logic
-    - Test parameter extraction
-    - Test error classification (retryable vs non-retryable)
-    - Test vendor_count() helper
-    - _Status: Not started_
+    - Test vendor selection logic (4 tests in repository_tests.rs)
+    - Test parameter extraction (3 tests in service_tests.rs)
+    - Test error classification (8 tests: 4 retryable + 4 non-retryable)
+    - Test vendor_count() helper (2 tests: service + repository)
+    - _Status: ✅ Completed (28 tests total for executor module)_
 
   - [ ] 8.6.10 Integration Testing (Optional - requires API key)
     - Test real OpenAI API calls
