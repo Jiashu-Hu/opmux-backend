@@ -142,17 +142,96 @@ Based on the complete system design (requirements.md + design.md), this implemen
   - _Requirement: Requirement 2 - Microservice Coordination (Executor Layer)_
   - _Status: Configuration system complete, vendor implementation ready for testing_
 
-- [ ] 8.6 Executor Layer Service Integration (Next Step)
+- [ ] 8.6 Executor Layer Service Integration (Current Task)
 
-  - Implement ExecutorService orchestration layer
-  - Add vendor registry and vendor selection logic
-  - Integrate ExecutorService with ingress repository layer
-  - Replace mock execute_llm_call() with real ExecutorService calls
-  - Add parameter extraction from original_payload
-  - Test real OpenAI API calls with actual API key
-  - Add error handling and retry logic
+  - Implement ExecutorService orchestration layer with retry and fallback logic
   - _Requirement: Requirement 2 - Microservice Coordination (Executor Layer)_
-  - _Status: Not started_
+  - _Status: In progress - Design complete, implementation next_
+
+  **Subtasks:**
+
+  - [ ] 8.6.1 Modify ExecutorService Core Structure
+
+    - **Modify** existing struct (not rewrite): Add `vendors` and `config` fields
+    - Replace `new()` with `from_config()` method for auto-initialization
+    - Add `vendor_count()` helper method
+    - Add `NoVendorsConfigured` error variant to `executor/error.rs`
+    - Keep existing `execute()` method signature
+    - _Status: Not started_
+
+  - [ ] 8.6.2 Implement Parameter Extraction
+
+    - Create `extract_params()` method
+    - Extract messages (required field)
+    - Extract optional parameters (temperature, max_tokens, top_p, stream)
+    - Add validation and error handling
+    - _Status: Not started_
+
+  - [ ] 8.6.3 Implement Vendor Selection
+
+    - Create `get_vendor()` method
+    - Lookup vendor by vendor_id
+    - Return appropriate error if vendor not found
+    - _Status: Not started_
+
+  - [ ] 8.6.4 Implement Retry Logic
+
+    - Create `execute_with_retry()` method
+    - Implement exponential backoff (1s, 2s, 4s, 8s, ...)
+    - Create `is_retryable_error()` helper
+    - Classify errors (retryable vs non-retryable)
+    - Add detailed logging for retry attempts
+    - _Status: Not started_
+
+  - [ ] 8.6.5 Implement Fallback Execution
+
+    - Create `execute_fallbacks()` method
+    - Sequential fallback execution
+    - Each fallback gets full retry logic
+    - Return primary error if all fallbacks fail
+    - Add detailed logging for fallback attempts
+    - _Status: Not started_
+
+  - [ ] 8.6.6 Implement Main Execute Method
+
+    - Create `execute()` method
+    - Extract parameters once
+    - Try primary plan with retry
+    - Try fallback plans if primary fails
+    - Return ExecutionResult
+    - _Status: Not started_
+
+  - [ ] 8.6.7 Integrate with IngressRepository
+
+    - Update IngressError to wrap ExecutorError (use `#[from]` attribute)
+    - Update IngressRepository to accept ExecutorService dependency
+    - Replace mock `execute_llm_call()` with real ExecutorService call
+    - Convert ExecutionResult → LLMExecutionResult
+    - Use `?` operator for automatic error conversion
+    - _Status: Not started_
+
+  - [ ] 8.6.8 Initialize in main.rs
+
+    - Load ExecutorConfig from environment
+    - Create ExecutorService instance
+    - Pass ExecutorService to IngressRepository
+    - Add initialization logging
+    - _Status: Not started_
+
+  - [ ] 8.6.9 Add Unit Tests
+
+    - Test vendor selection logic
+    - Test parameter extraction
+    - Test error classification (retryable vs non-retryable)
+    - Test vendor_count() helper
+    - _Status: Not started_
+
+  - [ ] 8.6.10 Integration Testing (Optional - requires API key)
+    - Test real OpenAI API calls
+    - Test retry logic with simulated failures
+    - Test fallback execution
+    - Verify token counting and cost calculation
+    - _Status: Deferred (requires API key)_
 
 - [ ] 8.7 Additional Vendor Support (Future)
 

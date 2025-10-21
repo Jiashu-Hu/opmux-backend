@@ -125,8 +125,8 @@ pub trait LLMVendor: Send + Sync {
 
 ### 1. Configuration vs Business Logic Separation
 
-**Problem**: Initial implementation had business logic methods (`supports_model()`,
-`get_pricing()`) in the config layer.
+**Problem**: Initial implementation had business logic methods (`supports_model()`, `get_pricing()`)
+in the config layer.
 
 **Solution**: Removed all business logic from `config.rs` and moved to vendor implementations.
 
@@ -281,8 +281,8 @@ data.
 **Lesson**: Building foundation first (config, traits, errors) before implementation allows for
 better design.
 
-**Application**: Configuration system is complete and tested, even though ExecutorService is not
-yet implemented.
+**Application**: Configuration system is complete and tested, even though ExecutorService is not yet
+implemented.
 
 ### 3. Documentation Is Critical
 
@@ -298,4 +298,3 @@ robust, the vendor abstraction is clean, and the error handling is comprehensive
 to implement the ExecutorService orchestration layer and integrate with the ingress service.
 
 **Status**: ✅ Configuration system complete, ⏸️ Service integration pending
-

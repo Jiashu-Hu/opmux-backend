@@ -260,6 +260,200 @@ Errors are modeled by **business operation** (what failed), not technical cause:
 - ✅ `UnsupportedModel`: Tells us the operation (model selection) failed
 - ❌ `HttpError`: Only tells us the technical cause, loses business context
 
+## ExecutorService Implementation Details (Task 8.6)
+
+### Architecture Overview
+
+ExecutorService acts as the **orchestration layer** that coordinates LLM execution workflow:
+
+```
+IngressRepository.execute_llm_call()
+    ↓
+ExecutorService.execute(plan, payload)
+    ↓
+1. Extract parameters from payload
+2. Select vendor by vendor_id
+3. Validate model support
+4. Execute with retry logic
+5. Handle fallback plans if primary fails
+    ↓
+ExecutionResult
+```
+
+### Component Design
+
+**Implementation Approach**: **Modify** existing `gateway/src/executor/service.rs`, not rewrite
+
+**Current State** (placeholder):
+
+```rust
+pub struct ExecutorService {
+    // Vendor registry will be added in Task 2.1
+}
+
+impl ExecutorService {
+    pub fn new() -> Self {
+        Self {}
+    }
+
+    pub async fn execute(
+        &self,
+        _plan: &RoutePlan,
+        _payload: &serde_json::Value,
+    ) -> Result<ExecutionResult, ExecutorError> {
+        todo!("ExecutorService::execute not yet implemented")
+    }
+}
+```
+
+#### 1. ExecutorService Structure (Modify existing struct)
+
+**Changes to make**:
+
+```rust
+use std::collections::HashMap;
+use std::sync::Arc;
+
+pub struct ExecutorService {
+    /// Vendor registry: vendor_id → vendor instance
+    vendors: HashMap<String, Arc<dyn LLMVendor>>,  // ADD THIS
+    /// Executor configuration
+    config: ExecutorConfig,  // ADD THIS
+}
+```
+
+**Design Decisions**:
+
+- ✅ **HashMap for vendor registry** - O(1) lookup by vendor_id
+- ✅ **Arc<dyn LLMVendor>** - Thread-safe shared ownership, vendors are stateless
+- ✅ **Config stored in service** - Needed for retry logic and timeout settings
+- ✅ **Keep existing method signatures** - Only replace `todo!()` with real implementation
+
+#### 2. Initialization (Auto-create from config)
+
+```rust
+impl ExecutorService {
+    /// Creates ExecutorService from configuration.
+    /// Automatically initializes all configured vendors.
+    pub fn from_config(config: ExecutorConfig) -> Result<Self, ExecutorError> {
+        let mut vendors: HashMap<String, Arc<dyn LLMVendor>> = HashMap::new();
+
+        // Initialize OpenAI vendor if configured
+        if let Some(openai_config) = &config.openai {
+            let vendor = OpenAIVendor::new(openai_config.clone())?;
+            vendors.insert("openai".to_string(), Arc::new(vendor));
+        }
+
+        // Initialize Anthropic vendor if configured (future)
+        // Initialize Grok vendor if configured (future)
+        // Initialize Google AI vendor if configured (future)
+
+        if vendors.is_empty() {
+            return Err(ExecutorError::NoVendorsConfigured);
+        }
+
+        Ok(Self { vendors, config })
+    }
+}
+```
+
+**Benefits**:
+
+- ✅ Simple initialization in main.rs: `ExecutorService::from_config(config)?`
+- ✅ Encapsulates vendor creation logic
+- ✅ Easy to add new vendors (just update this method)
+
+#### 3. Parameter Extraction
+
+```rust
+impl ExecutorService {
+    /// Extracts execution parameters from request payload.
+    fn extract_params(payload: &serde_json::Value) -> Result<ExecutionParams, ExecutorError> {
+        // Extract messages (required)
+        let messages = payload
+            .get("messages")
+            .and_then(|v| serde_json::from_value(v.clone()).ok())
+            .ok_or_else(|| ExecutorError::InvalidPayload(
+                "Missing or invalid 'messages' field".to_string()
+            ))?;
+
+        // Extract optional parameters
+        let temperature = payload.get("temperature").and_then(|v| v.as_f64());
+        let max_tokens = payload.get("max_tokens").and_then(|v| v.as_i64());
+        let top_p = payload.get("top_p").and_then(|v| v.as_f64());
+        let stream = payload.get("stream").and_then(|v| v.as_bool()).unwrap_or(false);
+
+        Ok(ExecutionParams {
+            messages,
+            temperature,
+            max_tokens,
+            top_p,
+            stream,
+        })
+    }
+}
+```
+
+**Supported Vendors** (MVP):
+
+- ✅ OpenAI (messages, temperature, max_tokens, top_p, stream)
+- ✅ Anthropic (same format, compatible)
+- ✅ Grok (same format, compatible)
+- ✅ Google AI (same format, compatible)
+
+**Future Enhancement**: Vendor-specific parameter extraction if needed
+
+#### 4. Vendor Selection
+
+```rust
+impl ExecutorService {
+    /// Selects vendor by vendor_id.
+    fn get_vendor(&self, vendor_id: &str) -> Result<Arc<dyn LLMVendor>, ExecutorError> {
+        self.vendors
+            .get(vendor_id)
+            .cloned()
+            .ok_or_else(|| ExecutorError::UnsupportedVendor(vendor_id.to_string()))
+    }
+}
+```
+
+**Error Handling**:
+
+- ❌ Vendor not found → `ExecutorError::UnsupportedVendor`
+- ❌ Model not supported → `ExecutorError::UnsupportedModel`
+
+#### 5. Execute Method with Retry and Fallback
+
+```rust
+impl ExecutorService {
+    /// Executes LLM call with retry and fallback logic.
+    pub async fn execute(
+        &self,
+        plan: &RoutePlan,
+        payload: &serde_json::Value,
+    ) -> Result<ExecutionResult, ExecutorError> {
+        // Extract parameters once (shared across retries and fallbacks)
+        let params = Self::extract_params(payload)?;
+
+        // Try primary plan with retry
+        match self.execute_with_retry(&plan.vendor_id, &plan.model_id, &params).await {
+            Ok(result) => Ok(result),
+            Err(primary_error) => {
+                tracing::warn!(
+                    "Primary execution failed: vendor={}, model={}, error={:?}",
+                    plan.vendor_id,
+                    plan.model_id,
+                    primary_error
+                );
+
+                // Try fallback plans
+                self.execute_fallbacks(&plan.fallback_plans, &params, primary_error).await
+            }
+        }
+    }
+}
+```
+
 ## Current Implementation Status
 
 ### ✅ Completed
@@ -272,24 +466,401 @@ Errors are modeled by **business operation** (what failed), not technical cause:
 - Cost calculation based on configurable pricing
 - Configuration/business logic separation
 
-### ⏸️ In Progress / Not Started
+### 🔄 In Progress (Task 8.6)
 
-- ExecutorService orchestration layer (placeholder only)
+- ExecutorService orchestration layer design
+- Retry logic with exponential backoff
+- Fallback plan execution
+- Integration with ingress service
+- Parameter extraction from payload
+
+### ⏸️ Not Started
+
 - Real API testing (not tested with actual OpenAI API key)
-- Integration with ingress service (deferred)
 - Anthropic vendor implementation
+- Grok vendor implementation
+- Google AI vendor implementation
 - Streaming response support
-- Retry logic and circuit breaker
+- Circuit breaker pattern
+
+### Retry Logic Implementation
+
+```rust
+impl ExecutorService {
+    /// Executes with retry logic.
+    async fn execute_with_retry(
+        &self,
+        vendor_id: &str,
+        model_id: &str,
+        params: &ExecutionParams,
+    ) -> Result<ExecutionResult, ExecutorError> {
+        let vendor = self.get_vendor(vendor_id)?;
+
+        // Validate model support before attempting
+        if !vendor.supports_model(model_id) {
+            return Err(ExecutorError::UnsupportedModel(
+                vendor_id.to_string(),
+                model_id.to_string(),
+            ));
+        }
+
+        let max_retries = self.config.max_retries;
+        let mut last_error = None;
+
+        for attempt in 0..=max_retries {
+            if attempt > 0 {
+                tracing::info!(
+                    "Retrying execution: attempt {}/{}, vendor={}, model={}",
+                    attempt,
+                    max_retries,
+                    vendor_id,
+                    model_id
+                );
+
+                // Exponential backoff: 1s, 2s, 4s, 8s, ...
+                let backoff_ms = 1000 * (2_u64.pow(attempt - 1));
+                tokio::time::sleep(tokio::time::Duration::from_millis(backoff_ms)).await;
+            }
+
+            match vendor.execute(model_id, params.clone()).await {
+                Ok(result) => {
+                    if attempt > 0 {
+                        tracing::info!(
+                            "Execution succeeded after {} retries",
+                            attempt
+                        );
+                    }
+                    return Ok(result);
+                }
+                Err(e) => {
+                    // Determine if error is retryable
+                    if Self::is_retryable_error(&e) {
+                        tracing::warn!(
+                            "Retryable error on attempt {}: {:?}",
+                            attempt,
+                            e
+                        );
+                        last_error = Some(e);
+                        continue;
+                    } else {
+                        // Non-retryable error, fail immediately
+                        tracing::error!(
+                            "Non-retryable error: {:?}",
+                            e
+                        );
+                        return Err(e);
+                    }
+                }
+            }
+        }
+
+        // All retries exhausted
+        Err(last_error.unwrap_or_else(|| {
+            ExecutorError::ApiCallFailed("Max retries exceeded".to_string())
+        }))
+    }
+
+    /// Determines if an error is retryable.
+    fn is_retryable_error(error: &ExecutorError) -> bool {
+        matches!(
+            error,
+            ExecutorError::NetworkError(_)
+                | ExecutorError::TimeoutError(_)
+                | ExecutorError::RateLimitExceeded(_)
+                | ExecutorError::ApiCallFailed(_)
+        )
+    }
+}
+```
+
+**Retry Strategy**:
+
+- ✅ **Retryable errors**: NetworkError, TimeoutError, RateLimitExceeded, ApiCallFailed
+- ❌ **Non-retryable errors**: AuthenticationFailed, InvalidPayload, UnsupportedVendor,
+  UnsupportedModel
+- ✅ **Exponential backoff**: 1s, 2s, 4s, 8s, ...
+- ✅ **Max retries**: Configurable via `config.max_retries` (default: 3)
+- ✅ **Logging**: Detailed logs for each retry attempt
+
+### Fallback Plan Execution
+
+```rust
+impl ExecutorService {
+    /// Executes fallback plans sequentially.
+    async fn execute_fallbacks(
+        &self,
+        fallback_plans: &[RoutePlan],
+        params: &ExecutionParams,
+        primary_error: ExecutorError,
+    ) -> Result<ExecutionResult, ExecutorError> {
+        if fallback_plans.is_empty() {
+            // No fallbacks, return primary error
+            return Err(primary_error);
+        }
+
+        tracing::info!("Attempting {} fallback plans", fallback_plans.len());
+
+        for (index, fallback) in fallback_plans.iter().enumerate() {
+            tracing::info!(
+                "Trying fallback {}/{}: vendor={}, model={}",
+                index + 1,
+                fallback_plans.len(),
+                fallback.vendor_id,
+                fallback.model_id
+            );
+
+            match self.execute_with_retry(
+                &fallback.vendor_id,
+                &fallback.model_id,
+                params,
+            ).await {
+                Ok(result) => {
+                    tracing::info!(
+                        "Fallback {} succeeded: vendor={}, model={}",
+                        index + 1,
+                        fallback.vendor_id,
+                        fallback.model_id
+                    );
+                    return Ok(result);
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        "Fallback {} failed: vendor={}, model={}, error={:?}",
+                        index + 1,
+                        fallback.vendor_id,
+                        fallback.model_id,
+                        e
+                    );
+                    // Continue to next fallback
+                    continue;
+                }
+            }
+        }
+
+        // All fallbacks failed, return primary error
+        tracing::error!("All fallback plans exhausted");
+        Err(primary_error)
+    }
+}
+```
+
+**Fallback Strategy**:
+
+- ✅ **Sequential execution**: Try fallbacks one by one
+- ✅ **Each fallback gets retry logic**: Full retry attempts for each fallback
+- ✅ **Return primary error if all fail**: Preserve original error context
+- ✅ **Logging**: Detailed logs for debugging and monitoring
+
+### Integration with IngressRepository
+
+#### Step 1: Update IngressError to wrap ExecutorError
+
+```rust
+// gateway/src/features/ingress/error.rs
+
+use crate::executor::error::ExecutorError;
+
+#[derive(Debug, thiserror::Error)]
+pub enum IngressError {
+    // ... existing variants ...
+
+    /// LLM execution failed (wraps ExecutorError to preserve error context)
+    #[error(transparent)]
+    ExecutionFailed(#[from] ExecutorError),
+}
+```
+
+**Benefits**:
+
+- ✅ Preserves structured error information
+- ✅ Allows automatic conversion with `?` operator
+- ✅ Upper layers can access original ExecutorError type
+- ✅ Correct HTTP status code mapping (e.g., 429 for RateLimitExceeded)
+
+#### Step 2: Update IngressRepository
+
+```rust
+// gateway/src/features/ingress/repository.rs
+
+use crate::executor::ExecutorService;
+use std::sync::Arc;
+
+pub struct IngressRepository {
+    executor_service: Arc<ExecutorService>,
+}
+
+impl IngressRepository {
+    pub fn new(executor_service: Arc<ExecutorService>) -> Self {
+        Self { executor_service }
+    }
+
+    pub async fn execute_llm_call(
+        &self,
+        plan: &RoutePlan,
+        payload: &serde_json::Value,
+    ) -> Result<LLMExecutionResult, IngressError> {
+        // Call real ExecutorService
+        // The ? operator automatically converts ExecutorError → IngressError::ExecutionFailed
+        let result = self.executor_service
+            .execute(plan, payload)
+            .await?;
+
+        // Convert ExecutionResult → LLMExecutionResult
+        Ok(LLMExecutionResult {
+            content: result.content,
+            model_used: result.model_used,
+            prompt_tokens: result.prompt_tokens,
+            completion_tokens: result.completion_tokens,
+            total_cost: result.total_cost,
+            finish_reason: result.finish_reason,
+        })
+    }
+}
+```
+
+**Key Changes**:
+
+- ❌ **Before**: `.map_err(|e| IngressError::ExecutionFailed(e.to_string()))?` - Loses error type
+- ✅ **After**: `.await?` - Preserves ExecutorError via `#[from]` attribute
+
+````
+
+### Initialization in main.rs
+
+```rust
+// gateway/src/main.rs
+
+use crate::executor::{ExecutorService, config::ExecutorConfig};
+use std::sync::Arc;
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // ... existing setup ...
+
+    // Load and validate executor configuration
+    let executor_config = ExecutorConfig::from_env();
+    executor_config.validate();
+
+    // Create ExecutorService (auto-initializes vendors)
+    let executor_service = Arc::new(
+        ExecutorService::from_config(executor_config)
+            .expect("Failed to initialize ExecutorService")
+    );
+
+    tracing::info!(
+        "ExecutorService initialized with {} vendors",
+        executor_service.vendor_count()
+    );
+
+    // Create IngressRepository with ExecutorService
+    let ingress_repo = Arc::new(IngressRepository::new(executor_service.clone()));
+
+    // Create IngressService with repository
+    let ingress_service = Arc::new(IngressService::new(ingress_repo));
+
+    // ... rest of setup ...
+}
+````
+
+**Helper Method**:
+
+```rust
+impl ExecutorService {
+    /// Returns the number of registered vendors.
+    pub fn vendor_count(&self) -> usize {
+        self.vendors.len()
+    }
+}
+```
+
+### Error Handling Updates
+
+Add new error variant to `executor/error.rs`:
+
+```rust
+#[derive(Debug, thiserror::Error)]
+pub enum ExecutorError {
+    // ... existing variants ...
+
+    /// No vendors configured in ExecutorConfig
+    #[error("No vendors configured")]
+    NoVendorsConfigured,
+}
+```
+
+**HTTP Status Mapping**:
+
+```rust
+impl IntoResponse for ExecutorError {
+    fn into_response(self) -> Response {
+        let (status, message) = match self {
+            // ... existing mappings ...
+            Self::NoVendorsConfigured => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "No LLM vendors configured".to_string(),
+            ),
+        };
+
+        let body = Json(json!({ "error": message }));
+        (status, body).into_response()
+    }
+}
+```
+
+## Implementation Guide
+
+### Files to Modify (Not Rewrite)
+
+| File                                         | Modification Type | Description                                      |
+| -------------------------------------------- | ----------------- | ------------------------------------------------ |
+| `gateway/src/executor/service.rs`            | **Modify**        | Add fields, replace `todo!()` with real logic    |
+| `gateway/src/executor/error.rs`              | **Modify**        | Add `NoVendorsConfigured` variant                |
+| `gateway/src/features/ingress/error.rs`      | **Modify**        | Add `ExecutionFailed(#[from] ExecutorError)`     |
+| `gateway/src/features/ingress/repository.rs` | **Modify**        | Add ExecutorService dependency, replace mock     |
+| `gateway/src/main.rs`                        | **Modify**        | Initialize ExecutorService, pass to repositories |
+
+### Key Principles
+
+1. ✅ **Modify, don't rewrite** - Keep existing structure and method signatures
+2. ✅ **Preserve error context** - Use `#[from]` to wrap ExecutorError in IngressError
+3. ✅ **Use `?` operator** - Automatic error conversion instead of `.map_err()`
+4. ✅ **Follow existing patterns** - Match style of other features (auth, health)
+
+### Error Handling Best Practice
+
+**❌ Bad** (loses error type information):
+
+```rust
+.map_err(|e| IngressError::ExecutionFailed(e.to_string()))?
+```
+
+**✅ Good** (preserves structured error):
+
+```rust
+// In IngressError enum:
+#[error(transparent)]
+ExecutionFailed(#[from] ExecutorError),
+
+// In code:
+let result = self.executor_service.execute(plan, payload).await?;
+```
+
+**Benefits**:
+
+- Preserves HTTP status code mapping (e.g., 429 for RateLimitExceeded)
+- Allows upper layers to inspect error type
+- Enables proper error logging and monitoring
 
 ## Future Enhancements
 
-### Short-term (Post-MVP)
+### Short-term (Task 8.6 - Current)
 
-1. Complete ExecutorService implementation
-2. Test with real OpenAI API
-3. Integrate with ingress service
-4. Add Anthropic vendor support
-5. Implement retry logic
+1. ✅ Complete ExecutorService implementation (modify existing service.rs)
+2. ✅ Integrate with ingress service (preserve error context)
+3. ⏸️ Test with real OpenAI API (requires API key)
+4. ⏸️ Add unit tests for retry and fallback logic
+
+### Medium-term (Task 8.7)
 
 ### Medium-term
 
