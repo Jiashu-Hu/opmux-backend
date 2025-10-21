@@ -11,6 +11,17 @@ use axum::{
 };
 use std::sync::Arc;
 
+/// Application state shared across all handlers.
+///
+/// This must match the AppState struct defined in main.rs.
+/// Using a unified AppState pattern allows for easy addition of new
+/// shared services without modifying handler signatures.
+#[derive(Clone)]
+pub struct AppState {
+    /// Shared ExecutorService for LLM execution across all requests
+    pub executor_service: Arc<ExecutorService>,
+}
+
 /// HTTP handler for AI routing ingress endpoint.
 ///
 /// # Flow
@@ -20,14 +31,14 @@ use std::sync::Arc;
 /// 4. Returns JSON response or error
 ///
 /// # Parameters
-/// - `executor_service` - Shared ExecutorService instance (injected via Axum state)
+/// - `state` - Application state with shared services (injected via Axum state)
 /// - `auth_context` - Authentication context (injected by auth middleware)
 /// - `request` - JSON AI routing request with prompt and metadata
 ///
 /// # Returns
 /// JSON response with AI content, model info, cost, and timing
 pub async fn ingress_handler(
-    State(executor_service): State<Arc<ExecutorService>>,
+    State(state): State<AppState>,
     auth_context: AuthContext,
     Json(request): Json<IngressRequest>,
 ) -> Result<ResponseJson<IngressResponse>, IngressError> {
@@ -39,7 +50,7 @@ pub async fn ingress_handler(
     }
 
     // Create service instance with ExecutorService dependency
-    let service = IngressService::new(executor_service);
+    let service = IngressService::new(state.executor_service);
 
     // Use client_id from authentication context
     let user_id = auth_context.client_id;

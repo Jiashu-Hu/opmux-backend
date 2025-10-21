@@ -32,5 +32,5 @@ pub mod constants;
 /// Mock data for development and testing.
 pub mod mockdata;
 
-// Re-export the handler for easy access
-pub use handler::ingress_handler;
+// Re-export the handler and AppState for easy access
+pub use handler::{ingress_handler, AppState};
