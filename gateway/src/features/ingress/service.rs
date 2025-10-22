@@ -3,6 +3,7 @@
 use super::{
     constants::AI_RESPONSE_ROLE, error::IngressError, repository::IngressRepository,
 };
+use crate::core::correlation::RequestContext;
 use crate::features::executor::service::ExecutorService;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -61,6 +62,9 @@ impl IngressService {
 
     /// Processes an AI routing request through the complete AI pipeline.
     ///
+    /// This is a CHILD SPAN. It automatically inherits `request_id` and
+    /// `client_correlation_id` from the parent Handler span.
+    ///
     /// # Flow
     /// 1. Retrieves conversation context from Memory Service
     /// 2. Builds request payload
@@ -71,24 +75,37 @@ impl IngressService {
     /// # Parameters
     /// - `request` - AI routing request with prompt and metadata
     /// - `user_id` - User identifier for context management
+    /// - `request_context` - Request context with correlation IDs for gRPC calls
     ///
     /// # Returns
     /// Complete AI response with metadata (cost, model, processing time)
+    #[tracing::instrument(
+        skip(self, request, request_context),
+        fields(
+            user_id = %user_id,
+            prompt_length = request.prompt.len(),
+        )
+    )]
     pub async fn process_request(
         &self,
         request: IngressRequest,
         user_id: String,
+        request_context: &RequestContext,
     ) -> Result<IngressResponse, IngressError> {
+        tracing::debug!("Starting request processing");
         let start_time = std::time::Instant::now();
 
         // Step 1: Get conversation context from Memory Service
+        tracing::debug!("Retrieving conversation context from Memory Service");
         let context = self
             .repository
-            .get_context(&user_id)
+            .get_context(&user_id, request_context)
             .await
             .map_err(|_| IngressError::ContextRetrievalFailed)?;
+        tracing::debug!("Context retrieved successfully");
 
         // Step 2: Build payload
+        tracing::debug!("Building request payload");
         let payload = serde_json::json!({
             "prompt": request.prompt,
             "metadata": request.metadata,
@@ -97,30 +114,53 @@ impl IngressService {
         // Step 2.5: [FUTURE] Call RewriteService if metadata.rewrite=true
         // TODO: Implement conditional rewrite logic when RewriteService is available
         // if request.metadata.get("rewrite").and_then(|v| v.as_bool()).unwrap_or(false) {
-        //     payload = self.repository.rewrite_request(&payload, &context).await?;
+        //     payload = self.repository.rewrite_request(&payload, &context, request_context).await?;
         // }
 
         // Step 3: Optimize route via Router Service
+        tracing::debug!("Optimizing route via Router Service");
         let _router_response = self
             .repository
-            .optimize_route(&payload, &context)
+            .optimize_route(&payload, &context, request_context)
             .await
             .map_err(|_| IngressError::RequestOrchestrationFailed)?;
+        tracing::debug!(
+            vendor = %_router_response.optimized_plan.vendor_id,
+            model = %_router_response.optimized_plan.model_id,
+            "Route optimization completed"
+        );
 
         // Step 4: Execute LLM call via ExecutorService with retry and fallback logic
+        tracing::debug!("Executing LLM call via ExecutorService");
         let llm_result = self
             .repository
             .execute_llm_call(&_router_response.optimized_plan, &payload)
             .await?; // Use ? operator for automatic ExecutorError → IngressError conversion
+        tracing::debug!(
+            tokens = llm_result.prompt_tokens + llm_result.completion_tokens,
+            cost = llm_result.total_cost,
+            "LLM execution completed"
+        );
 
         // Step 5: Update conversation context in Memory Service
+        tracing::debug!("Updating conversation context in Memory Service");
         self.repository
-            .update_context(&user_id, &request.prompt, &llm_result.content)
+            .update_context(
+                &user_id,
+                &request.prompt,
+                &llm_result.content,
+                request_context,
+            )
             .await
             .map_err(|_| IngressError::ContextUpdateFailed)?;
+        tracing::debug!("Context updated successfully");
 
         // Step 6: Calculate processing time and return response
         let processing_time_ms = start_time.elapsed().as_millis() as u64;
+        tracing::debug!(
+            processing_time_ms = processing_time_ms,
+            "Request processing completed"
+        );
 
         Ok(IngressResponse {
             response: AIResponse {
