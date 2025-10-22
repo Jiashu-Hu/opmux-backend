@@ -91,57 +91,63 @@ This implementation plan follows the **business-logic-first development principl
   - Update module documentation
   - _Requirement: Requirement 5 - Monitoring and Observability_
 
-### Task 10.3: Add Tracing Spans to All Layers
+### Task 10.3: Add Tracing Spans to All Layers ✅ COMPLETED
 
 **Objective**: Instrument all feature layers with tracing spans
 
+**Implementation Note**: Uses **Hybrid Approach** - Explicit RequestContext parameter passing for business logic (gRPC calls) + Automatic tracing span inheritance for logging.
+
 **Subtasks**:
 
-- [ ] 10.3.1 Add Tracing to Ingress Handler (Root Span)
-  - Add `#[tracing::instrument]` to `handle_ingress` function
-  - Include `request_id`, `client_correlation_id`, `endpoint` in span fields (ROOT SPAN ONLY)
+- [x] 10.3.1 Add Tracing to Ingress Handler (Root Span) ✅
+  - Add `#[tracing::instrument]` to `ingress_handler` function
+  - Include `request_id`, `client_correlation_id`, `user_id`, `endpoint`, `prompt_length` in span fields (ROOT SPAN ONLY)
   - Skip sensitive fields (request body)
   - Add info logs for request start and completion
   - **Important**: This is the ONLY place to add request_id to span fields
+  - Pass `&request_context` to service layer for business logic (gRPC calls)
   - _Requirement: Requirement 5 - Monitoring and Observability_
 
-- [ ] 10.3.2 Add Tracing to Ingress Service (Child Span)
+- [x] 10.3.2 Add Tracing to Ingress Service (Child Span) ✅
   - Add `#[tracing::instrument]` to `process_request` function
+  - Add `request_context: &RequestContext` parameter for gRPC RequestMeta construction
   - Include `user_id`, `prompt_length` in span fields
   - **DO NOT** include `request_id` or `client_correlation_id` (inherited from parent)
   - Skip sensitive fields (prompt content)
   - Add debug logs for each processing step
+  - Pass `request_context` to all repository methods
   - _Requirement: Requirement 5 - Monitoring and Observability_
 
-- [ ] 10.3.3 Add Tracing to Ingress Repository (Child Span)
-  - Add `#[tracing::instrument]` to `optimize_route` function
-  - Add `#[tracing::instrument]` to `execute_llm_call` function
+- [x] 10.3.3 Add Tracing to Ingress Repository (Child Span) ✅
+  - Add `#[tracing::instrument]` to `get_context`, `optimize_route`, `update_context` functions
+  - Add `request_context: &RequestContext` parameter to all methods for future gRPC calls
   - Include `vendor_id`, `model_id` in span fields
   - **DO NOT** include `request_id` or `client_correlation_id` (inherited from root)
   - Add debug logs for external service calls
+  - Add comments showing future gRPC RequestMeta construction
   - _Requirement: Requirement 5 - Monitoring and Observability_
 
-- [ ] 10.3.4 Add Tracing to Executor Service (Child Span)
+- [x] 10.3.4 Add Tracing to Executor Service (Child Span) ✅
   - Add `#[tracing::instrument]` to `execute` function
   - Add `#[tracing::instrument]` to `execute_with_retry` function
-  - Include `vendor_id`, `model_id`, `retry_attempt` in span fields
+  - Include `vendor_id`, `model_id`, `max_retries` in span fields
   - **DO NOT** include `request_id` (inherited from root span)
   - Add info logs for retry attempts and fallbacks
   - _Requirement: Requirement 5 - Monitoring and Observability_
 
-- [ ] 10.3.5 Add Tracing to Executor Repository (Child Span)
-  - Add `#[tracing::instrument]` to vendor `execute` methods
-  - Include `model_id`, `max_tokens` in span fields
+- [x] 10.3.5 Add Tracing to Executor Repository (Child Span) ✅
+  - Add `#[tracing::instrument]` to `call_llm` method
+  - Include `vendor_id`, `model_id`, `max_tokens` in span fields
   - **DO NOT** include `request_id` (inherited from root span)
-  - Add debug logs for API calls and responses
+  - Add debug logs for API calls and completion
   - _Requirement: Requirement 5 - Monitoring and Observability_
 
-- [ ] 10.3.6 Add Tracing to Auth Middleware (Child Span)
-  - Add `#[tracing::instrument]` to `auth_middleware` function
-  - Include `auth_method`, `user_id` in span fields
+- [x] 10.3.6 Review Auth Middleware Tracing (Child Span) ✅
+  - Updated `#[tracing::instrument]` in `auth_middleware` function
+  - Include `auth_method`, `user_id` in span fields (using dynamic recording)
   - **DO NOT** include `request_id` (inherited from correlation_id_middleware)
   - Skip sensitive fields (API keys)
-  - Add info logs for authentication success/failure
+  - Uses `tracing::Span::current().record()` for dynamic field values
   - _Requirement: Requirement 5 - Monitoring and Observability_
 
 ### Task 10.4: Integrate Prometheus Metrics

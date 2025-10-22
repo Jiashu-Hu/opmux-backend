@@ -228,153 +228,164 @@ pub async fn correlation_id_middleware(
 
 #### Accessing RequestContext in Business Logic
 
-**Strategy**: Hybrid approach - automatic propagation via tracing spans + explicit access when needed.
+**Strategy**: **Hybrid Approach** - Explicit parameter passing for business logic + Automatic tracing span inheritance for logging.
 
-**Approach A: Automatic Propagation (Default)** ⭐
+**Rationale**:
+- ✅ **Explicit Passing**: Required for gRPC RequestMeta construction (request_id, client_id, traceparent, deadline_ms)
+- ✅ **Span Inheritance**: Automatic propagation for logging and observability
+- ✅ **Type Safety**: Compile-time guarantees for required parameters
+- ✅ **Clear Dependencies**: Explicit function signatures show what each layer needs
+
+**Implementation Pattern** ⭐
 
 ```rust
-// Handler Layer - Create root span with request_id
+// Handler Layer - ROOT SPAN (only place to add request_id to span fields)
 #[tracing::instrument(
-    skip(state, request),
+    skip(state, request_context, auth_context, request),
     fields(
-        request_id = %request_context.request_id,
-        client_correlation_id = ?request_context.client_correlation_id
+        request_id = %request_context.request_id,  // ✅ Add here (root span only)
+        client_correlation_id = ?request_context.client_correlation_id,
+        user_id = %auth_context.client_id,
+        endpoint = "/api/v1/route",
     )
 )]
-pub async fn handle_ingress(
+pub async fn ingress_handler(
+    State(state): State<AppState>,
     Extension(request_context): Extension<RequestContext>,
-    State(state): State<Arc<AppState>>,
+    auth_context: AuthContext,
     Json(request): Json<IngressRequest>,
-) -> Result<Json<IngressResponse>, IngressError> {
-    // request_id automatically available in all child spans
-    state.ingress_service.process_request(request, user_id).await
+) -> Result<ResponseJson<IngressResponse>, IngressError> {
+    let service = IngressService::new(state.executor_service);
+    let user_id = auth_context.client_id;
+
+    // Pass request_context explicitly for business logic (gRPC calls)
+    service.process_request(request, user_id, &request_context).await
 }
 
-// Service Layer - Inherits parent span fields
-#[tracing::instrument(skip(self))]
-pub async fn process_request(&self, ...) -> Result<...> {
-    // Logs automatically include request_id from parent span
-    tracing::info!("Processing ingress request");
-}
-```
-
-**Approach B: Explicit Access (When Needed)**
-
-```rust
-// Handler Layer - Pass RequestContext explicitly
-pub async fn handle_ingress(
-    Extension(request_context): Extension<RequestContext>,
-    ...
-) -> Result<...> {
-    // Pass to service when explicit access needed
-    state.ingress_service
-        .process_request(request, user_id, request_context)
-        .await
-}
-
-// Service Layer - Receive and use RequestContext
+// Service Layer - CHILD SPAN (inherits request_id from parent)
 impl IngressService {
-    // ⚠️ IMPORTANT: When RequestContext is an explicit parameter,
-    // DO NOT add request_id/client_correlation_id to #[tracing::instrument] fields
-    // to avoid duplication in logs
     #[tracing::instrument(
-        skip(self, request, request_context),  // Skip RequestContext to avoid duplication
+        skip(self, request, request_context),  // Skip to avoid duplication
         fields(
             user_id = %user_id,
-            // ❌ DO NOT add: request_id = %request_context.request_id
-            // ❌ DO NOT add: client_correlation_id = ?request_context.client_correlation_id
+            prompt_length = request.prompt.len(),
+            // ❌ DO NOT add request_id here - inherited from parent span
         )
     )]
     pub async fn process_request(
         &self,
         request: IngressRequest,
         user_id: String,
-        request_context: RequestContext,  // Explicit parameter
+        request_context: &RequestContext,  // ✅ Explicit parameter for business logic
     ) -> Result<IngressResponse, IngressError> {
-        // Explicit logging with request_id (only when needed for specific events)
-        tracing::info!(
-            request_id = %request_context.request_id,
-            client_correlation_id = ?request_context.client_correlation_id,
-            "Processing request for user: {}", user_id
-        );
+        // Pass to repository for gRPC RequestMeta construction
+        let context = self.repository
+            .get_context(&user_id, request_context)  // ✅ Pass for gRPC
+            .await?;
 
-        // Pass to external API headers
-        let headers = vec![
-            ("X-Request-ID", request_context.request_id.as_str()),
-        ];
+        let router_response = self.repository
+            .optimize_route(&payload, &context, request_context)  // ✅ Pass for gRPC
+            .await?;
 
-        self.repository.call_external_api(headers).await
+        self.repository
+            .update_context(&user_id, &request.prompt, &response, request_context)  // ✅ Pass for gRPC
+            .await?;
+
+        Ok(response)
+    }
+}
+
+// Repository Layer - CHILD SPAN (inherits request_id from parent)
+impl IngressRepository {
+    #[tracing::instrument(skip(self, _payload, _context, _request_context))]
+    pub async fn optimize_route(
+        &self,
+        _payload: &serde_json::Value,
+        _context: &ContextData,
+        _request_context: &RequestContext,  // ✅ Use for gRPC RequestMeta
+    ) -> Result<RouterServiceResponse, IngressError> {
+        // Future: Build gRPC RequestMeta from request_context
+        // let grpc_request = OptimizeRouteRequest {
+        //     meta: Some(RequestMeta {
+        //         request_id: request_context.request_id.clone(),  // ✅ From RequestContext
+        //         client_id: /* from auth_context */,
+        //         traceparent: /* from request_context */,
+        //         deadline_ms: /* from request */,
+        //     }),
+        //     original_payload: Some(payload.clone()),
+        //     context: /* ... */,
+        // };
+
+        // Mock implementation
+        Ok(MockDataProvider::get_mock_router_response())
     }
 }
 ```
 
-**Avoiding Duplication - Best Practices**:
+**Key Principles**:
 
-| Scenario | Add to `#[tracing::instrument]` fields? | Rationale |
-|----------|----------------------------------------|-----------|
-| **Approach A** (automatic propagation) | ✅ Yes, in Handler layer only | Root span sets context for all children |
-| **Approach B** (explicit parameter) | ❌ No, skip in `#[tracing::instrument]` | Already in parent span, avoid duplication |
-| **Explicit logging** (specific events) | ✅ Yes, in individual `tracing::info!()` calls | Only when needed for specific events |
+| Layer | RequestContext Usage | Tracing Span Fields | Rationale |
+|-------|---------------------|---------------------|-----------|
+| **Handler** (Root Span) | ✅ Extract from Extension<br>✅ Add to span fields<br>✅ Pass to Service | `request_id`, `client_correlation_id`, `user_id`, `endpoint` | Root span sets context for all children |
+| **Service** (Child Span) | ✅ Receive as parameter<br>❌ DO NOT add to span fields<br>✅ Pass to Repository | `user_id`, `prompt_length`<br>❌ NO request_id (inherited) | Explicit parameter for business logic<br>Span inheritance for logging |
+| **Repository** (Child Span) | ✅ Receive as parameter<br>❌ DO NOT add to span fields<br>✅ Use for gRPC RequestMeta | `vendor_id`, `model_id`<br>❌ NO request_id (inherited) | Use for gRPC metadata construction<br>Span inheritance for logging |
 
-**Example - Correct Usage**:
+**Why This Design?**
+
+1. ✅ **gRPC Integration**: RequestContext explicitly available for constructing gRPC RequestMeta
+2. ✅ **Type Safety**: Compile-time guarantees that request_id is available where needed
+3. ✅ **Logging Simplicity**: Automatic span inheritance means all logs include request_id
+4. ✅ **No Duplication**: request_id only added to span fields once (in Handler/root span)
+5. ✅ **Clear Dependencies**: Function signatures show what each layer needs
+
+**Correct Usage Pattern**:
 
 ```rust
 // ✅ CORRECT: Handler creates root span with request_id
 #[tracing::instrument(
-    skip(state, request),
+    skip(state, request_context, auth_context, request),
     fields(
-        request_id = %request_context.request_id,           // ✅ Add here (root span)
-        client_correlation_id = ?request_context.client_correlation_id
+        request_id = %request_context.request_id,           // ✅ Add here (root span only)
+        client_correlation_id = ?request_context.client_correlation_id,
+        user_id = %auth_context.client_id,
     )
 )]
-pub async fn handle_ingress(
+pub async fn ingress_handler(
     Extension(request_context): Extension<RequestContext>,
     ...
 ) -> Result<...> {
-    // All child spans automatically inherit request_id
-    state.ingress_service.process_request(request, user_id).await
+    // Pass RequestContext explicitly for business logic
+    service.process_request(request, user_id, &request_context).await
 }
 
-// ✅ CORRECT: Service inherits from parent span
+// ✅ CORRECT: Service receives RequestContext but doesn't add to span
 #[tracing::instrument(
-    skip(self),
-    // ❌ DO NOT add request_id here - already in parent span
+    skip(self, request, request_context),  // Skip to avoid duplication
+    fields(
+        user_id = %user_id,
+        // ❌ DO NOT add request_id here - already in parent span
+    )
 )]
-pub async fn process_request(&self, ...) -> Result<...> {
+pub async fn process_request(
+    &self,
+    request: IngressRequest,
+    user_id: String,
+    request_context: &RequestContext,  // ✅ Explicit parameter
+) -> Result<...> {
     // Logs automatically include request_id from parent span
     tracing::info!("Processing request");
-}
 
-// ✅ CORRECT: Explicit logging only when needed
-pub async fn call_external_api(&self, request_context: RequestContext) -> Result<...> {
-    // Only log request_id when passing to external API
-    tracing::debug!(
-        request_id = %request_context.request_id,
-        "Calling external API with request ID"
-    );
-
-    let headers = vec![("X-Request-ID", request_context.request_id.as_str())];
-    // ...
+    // Pass to repository for gRPC calls
+    self.repository.get_context(&user_id, request_context).await
 }
 ```
 
 **Example - Incorrect Usage (Causes Duplication)**:
 
 ```rust
-// ❌ INCORRECT: Duplication in logs
+// ❌ INCORRECT: Adding request_id to child span fields
 #[tracing::instrument(
-    skip(state, request),
-    fields(
-        request_id = %request_context.request_id,  // Added in root span
-    )
-)]
-pub async fn handle_ingress(...) -> Result<...> {
-    state.ingress_service.process_request(request, user_id, request_context).await
-}
-
-// ❌ INCORRECT: Adds request_id again (duplication!)
-#[tracing::instrument(
-    skip(self, request_context),
+    skip(self, request, request_context),
     fields(
         request_id = %request_context.request_id,  // ❌ Duplicate!
     )

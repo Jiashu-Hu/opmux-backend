@@ -137,10 +137,16 @@ impl IntoResponse for FeatureError {
 /// # Parameters
 /// - `request` - AI routing request with prompt and metadata
 /// - `user_id` - User identifier for context management
+/// - `request_context` - Request context with correlation IDs for gRPC calls
 ///
 /// # Returns
 /// Complete AI response with metadata (cost, model, processing time)
-pub async fn process_request(&self, request: IngressRequest, user_id: String) -> Result<IngressResponse, IngressError>
+pub async fn process_request(
+    &self,
+    request: IngressRequest,
+    user_id: String,
+    request_context: &RequestContext,
+) -> Result<IngressResponse, IngressError>
 ```
 
 ### Poor Documentation ❌
@@ -151,7 +157,12 @@ pub async fn process_request(&self, request: IngressRequest, user_id: String) ->
 /// This method takes an IngressRequest and a String representing the user ID,
 /// then it goes through several steps to process the request by calling various
 /// services and then returns an IngressResponse or an error if something goes wrong
-pub async fn process_request(&self, request: IngressRequest, user_id: String) -> Result<IngressResponse, IngressError>
+pub async fn process_request(
+    &self,
+    request: IngressRequest,
+    user_id: String,
+    request_context: &RequestContext,
+) -> Result<IngressResponse, IngressError>
 ```
 
 ## Quick Checklist
