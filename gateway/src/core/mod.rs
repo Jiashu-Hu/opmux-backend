@@ -1,4 +1,7 @@
 // Core module containing reusable primitives and shared functionality
 
 pub mod config; // Centralized configuration management
+pub mod correlation; // Request correlation and context management (Task 10.1.2)
 pub mod error; // Application-wide error handling
+pub mod metrics; // Prometheus metrics configuration (Task 10.1.4)
+pub mod tracing; // Tracing and logging configuration (Task 10.1.3)
