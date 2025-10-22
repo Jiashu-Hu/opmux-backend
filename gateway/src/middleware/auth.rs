@@ -9,10 +9,21 @@ use axum::{
     response::Response,
 };
 
-/// Authentication middleware function
-/// Validates X-API-Key header and injects AuthContext into request
-/// Supports development mode bypass via AUTH_DEVELOPMENT_MODE environment variable
-#[tracing::instrument(level = "debug", skip(request, next))]
+/// Authentication middleware function.
+///
+/// This is a CHILD SPAN. It automatically inherits `request_id` and
+/// `client_correlation_id` from the correlation_id_middleware (root span).
+///
+/// Validates X-API-Key header and injects AuthContext into request.
+/// Supports development mode bypass via AUTH_DEVELOPMENT_MODE environment variable.
+#[tracing::instrument(
+    level = "debug",
+    skip(request, next),
+    fields(
+        auth_method = tracing::field::Empty,
+        user_id = tracing::field::Empty,
+    )
+)]
 pub async fn auth_middleware(
     mut request: Request,
     next: Next,
@@ -22,9 +33,13 @@ pub async fn auth_middleware(
 
     // Check if development mode is enabled
     if config.is_development_mode() {
+        tracing::Span::current().record("auth_method", "development_mode");
+
         // Development mode: bypass authentication and inject mock context
         let auth_service = AuthService::new();
         let dev_context = auth_service.create_dev_context();
+
+        tracing::Span::current().record("user_id", dev_context.client_id.as_str());
         request.extensions_mut().insert(dev_context);
 
         let response = next.run(request).await;
@@ -33,13 +48,14 @@ pub async fn auth_middleware(
         let duration = start.elapsed();
         tracing::info!(
             duration_ms = duration.as_millis(),
-            mode = "development",
             success = true,
             "Authentication completed (development mode bypass)"
         );
 
         return Ok(response);
     }
+
+    tracing::Span::current().record("auth_method", "api_key");
 
     // Production mode: require API key authentication
     let headers = request.headers();
@@ -60,13 +76,15 @@ pub async fn auth_middleware(
             let duration = start.elapsed();
             tracing::warn!(
                 duration_ms = duration.as_millis(),
-                mode = "production",
                 success = false,
                 "Authentication failed: Invalid API key"
             );
             return Err(StatusCode::UNAUTHORIZED);
         }
     };
+
+    // Record user_id in span
+    tracing::Span::current().record("user_id", auth_context.client_id.as_str());
 
     // Inject AuthContext into request extensions
     request.extensions_mut().insert(auth_context);
@@ -81,7 +99,6 @@ pub async fn auth_middleware(
     if is_slow {
         tracing::warn!(
             duration_ms = duration.as_millis(),
-            mode = "production",
             success = true,
             threshold_ms = config.get_slow_threshold_ms(),
             "Slow authentication detected"
@@ -89,7 +106,6 @@ pub async fn auth_middleware(
     } else {
         tracing::info!(
             duration_ms = duration.as_millis(),
-            mode = "production",
             success = true,
             "Authentication completed"
         );

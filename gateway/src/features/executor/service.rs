@@ -48,6 +48,8 @@ impl ExecutorService {
 
     /// Executes LLM call with retry logic and exponential backoff.
     ///
+    /// This is a CHILD SPAN. It automatically inherits `request_id` from parent.
+    ///
     /// # Flow
     /// 1. Validate model support via repository
     /// 2. Attempt execution with retry loop
@@ -67,6 +69,14 @@ impl ExecutorService {
     /// - Model not supported
     /// - All retry attempts exhausted
     /// - Non-retryable error occurs
+    #[tracing::instrument(
+        skip(self, params),
+        fields(
+            vendor_id = %vendor_id,
+            model_id = %model_id,
+            max_retries = self.config.max_retries,
+        )
+    )]
     pub(crate) async fn execute_with_retry(
         &self,
         vendor_id: &str,
@@ -296,6 +306,8 @@ impl ExecutorService {
 
     /// Executes LLM call based on routing plan.
     ///
+    /// This is a CHILD SPAN. It automatically inherits `request_id` from parent.
+    ///
     /// # Flow
     /// 1. Extract parameters from payload
     /// 2. Try primary plan with retry logic
@@ -313,6 +325,13 @@ impl ExecutorService {
     /// Returns error if:
     /// - Payload is invalid
     /// - Primary execution fails and no fallbacks succeed
+    #[tracing::instrument(
+        skip(self, payload),
+        fields(
+            vendor_id = %plan.vendor_id,
+            model_id = %plan.model_id,
+        )
+    )]
     pub async fn execute(
         &self,
         plan: &RoutePlan,

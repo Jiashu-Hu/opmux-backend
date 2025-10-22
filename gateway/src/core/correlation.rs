@@ -104,7 +104,8 @@ mod tests {
 
     #[test]
     fn test_request_context_clone() {
-        let context = RequestContext::new("req-123".to_string(), Some("client-456".to_string()));
+        let context =
+            RequestContext::new("req-123".to_string(), Some("client-456".to_string()));
         let cloned = context.clone();
 
         assert_eq!(context.request_id, cloned.request_id);
@@ -112,4 +113,3 @@ mod tests {
         assert_eq!(context.timestamp, cloned.timestamp);
     }
 }
-

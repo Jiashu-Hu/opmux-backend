@@ -85,6 +85,8 @@ impl ExecutorRepository {
 
     /// Calls LLM API directly (no retry, no fallback).
     ///
+    /// This is a CHILD SPAN. It automatically inherits `request_id` from parent.
+    ///
     /// This is a pure data access method - business logic (retry, fallback)
     /// should be handled by the Service layer.
     ///
@@ -101,17 +103,28 @@ impl ExecutorRepository {
     /// - Vendor not found
     /// - Model not supported
     /// - API call fails
+    #[tracing::instrument(
+        skip(self, params),
+        fields(
+            vendor_id = %vendor_id,
+            model_id = %model_id,
+            max_tokens = params.max_tokens,
+        )
+    )]
     pub async fn call_llm(
         &self,
         vendor_id: &str,
         model_id: &str,
         params: &ExecutionParams,
     ) -> Result<ExecutionResult, ExecutorError> {
+        tracing::debug!("Calling LLM API");
+
         // Get vendor
         let vendor = self.get_vendor(vendor_id)?;
 
         // Validate model support
         if !vendor.supports_model(model_id) {
+            tracing::warn!("Model not supported by vendor");
             return Err(ExecutorError::UnsupportedModel(
                 vendor_id.to_string(),
                 model_id.to_string(),
@@ -119,6 +132,15 @@ impl ExecutorRepository {
         }
 
         // Direct API call (no retry, no fallback)
-        vendor.execute(model_id, params.clone()).await
+        let result = vendor.execute(model_id, params.clone()).await?;
+
+        tracing::debug!(
+            prompt_tokens = result.prompt_tokens,
+            completion_tokens = result.completion_tokens,
+            total_cost = result.total_cost,
+            "LLM API call completed"
+        );
+
+        Ok(result)
     }
 }
