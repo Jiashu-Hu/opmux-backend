@@ -5,12 +5,15 @@ use axum::{
     Router,
 };
 use gateway::{
-    core::config::get_config,
+    core::{
+        config::get_config,
+        metrics::{create_metrics, MetricsConfig},
+    },
     features::{
         executor::config::ExecutorConfig, executor::service::ExecutorService, health,
         ingress,
     },
-    middleware::auth,
+    middleware::{auth, correlation_id},
     AppState,
 };
 use std::sync::Arc;
@@ -22,6 +25,20 @@ async fn main() {
 
     // Initialize configuration (logs all settings including warnings)
     let config = get_config();
+
+    // Initialize Prometheus metrics
+    tracing::info!("Initializing Prometheus metrics...");
+    let metrics_config = MetricsConfig::from_env();
+    let metrics_setup = create_metrics(metrics_config.clone());
+
+    if metrics_setup.is_some() {
+        tracing::info!(
+            endpoint = %metrics_config.endpoint_path,
+            "Prometheus metrics enabled"
+        );
+    } else {
+        tracing::warn!("Prometheus metrics disabled by configuration");
+    }
 
     // Initialize ExecutorService for LLM execution
     tracing::info!("Initializing ExecutorService...");
@@ -52,32 +69,68 @@ async fn main() {
         .route("/", get(hello_world))
         .route("/health", get(health::health_handler));
 
-    // Combine all routes
-    let app = Router::new().merge(protected_routes).merge(public_routes);
+    // Combine routes and apply middleware stack
+    // Middleware is applied in reverse order (bottom to top):
+    // 1. Correlation ID (first) - generates request_id
+    // 2. Metrics (second) - records HTTP metrics
+    // 3. Auth (third, only for protected routes) - validates authentication
+    let mut app = Router::new()
+        .merge(protected_routes)
+        .merge(public_routes)
+        .layer(middleware::from_fn(
+            correlation_id::correlation_id_middleware,
+        ));
+
+    // Add metrics layer if enabled
+    if let Some((metric_layer, prometheus_handle)) = metrics_setup {
+        tracing::info!("Adding Prometheus metrics middleware to router");
+
+        // Add metrics endpoint (public, no auth required)
+        // ⚠️ SECURITY: In production, restrict /metrics access via network policies
+        app = app
+            .route(
+                &metrics_config.endpoint_path,
+                get(|| async move { prometheus_handle.render() }),
+            )
+            .layer(metric_layer);
+    }
 
     // Start the server
     let listener = tokio::net::TcpListener::bind(config.server.bind_address)
         .await
         .unwrap();
+
     tracing::info!(
-        "Gateway server running on http://{}",
+        "🚀 Gateway server running on http://{}",
+        config.server.bind_address
+    );
+    tracing::info!("");
+    tracing::info!("📍 Available endpoints:");
+    tracing::info!(
+        "   - Health check: http://{}/health",
         config.server.bind_address
     );
     tracing::info!(
-        "Health check available at http://{}/health",
+        "   - Ingress API: http://{}/api/v1/route (protected)",
         config.server.bind_address
     );
-    tracing::info!(
-        "Protected ingress endpoint available at http://{}/api/v1/route",
-        config.server.bind_address
-    );
+
+    if metrics_config.enabled {
+        tracing::info!(
+            "   - Metrics: http://{}{}",
+            config.server.bind_address,
+            metrics_config.endpoint_path
+        );
+    }
+
+    tracing::info!("");
 
     if config.auth.development_mode {
         tracing::info!("🚨 Development mode: Authentication is BYPASSED");
         tracing::info!("🚨 No API key required for testing");
     } else {
         tracing::info!(
-            "Authentication required: X-API-Key header with value 'test-api-key-123'"
+            "🔒 Authentication required: X-API-Key header with value 'test-api-key-123'"
         );
     }
 
