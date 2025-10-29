@@ -150,36 +150,60 @@ This implementation plan follows the **business-logic-first development principl
   - Uses `tracing::Span::current().record()` for dynamic field values
   - _Requirement: Requirement 5 - Monitoring and Observability_
 
-### Task 10.4: Integrate Prometheus Metrics
+### Task 10.4: Integrate Prometheus Metrics ✅ COMPLETED
 
 **Objective**: Add Prometheus metrics collection using axum-prometheus
 
+**Implementation Notes**:
+- Integrated Prometheus metrics using `axum-prometheus` crate
+- Middleware order: Correlation ID → Metrics → Auth
+- Metrics endpoint: `/metrics` (configurable via `METRICS_PATH`)
+- Conditional enabling via `METRICS_ENABLED` environment variable
+- All 66 tests passing
+- Commit: `9da61de` - "feat(observability): Complete Task 10.4 - Prometheus Metrics Integration"
+
 **Subtasks**:
 
-- [ ] 10.4.1 Initialize Prometheus Metrics
-  - Create metrics registry in `main.rs`
-  - Initialize `axum-prometheus` with default metrics
-  - Configure metric labels (method, endpoint, status)
+- [x] 10.4.1 Initialize Prometheus Metrics
+  - ✅ Created `MetricsConfig::from_env()` initialization in `main.rs`
+  - ✅ Initialized `axum-prometheus` with default metrics using `create_metrics()`
+  - ✅ Configured metric labels (method, endpoint, status)
+  - ✅ Support conditional enabling/disabling via `METRICS_ENABLED`
   - _Requirement: Requirement 5 - Monitoring and Observability_
 
-- [ ] 10.4.2 Add Metrics Middleware to Router
-  - Add `PrometheusMetricLayer` to middleware stack
-  - Ensure correct middleware order (after correlation ID, before auth)
+- [x] 10.4.2 Add Metrics Middleware to Router
+  - ✅ Added `PrometheusMetricLayer` to middleware stack
+  - ✅ Correct middleware order: Correlation ID (first) → Metrics (second) → Auth (third)
+  - ✅ Ensures all requests are tracked (including auth failures)
   - _Requirement: Requirement 5 - Monitoring and Observability_
 
-- [ ] 10.4.3 Create Metrics Endpoint
-  - Add `/metrics` route to router
-  - Implement `metrics_handler` to expose Prometheus metrics
-  - Ensure endpoint is accessible without authentication
-  - Add documentation comment about production security
+- [x] 10.4.3 Create Metrics Endpoint
+  - ✅ Added `/metrics` route to router (configurable via `METRICS_PATH`)
+  - ✅ Implemented handler using `prometheus_handle.render()`
+  - ✅ Endpoint is accessible without authentication (public)
+  - ✅ Added security warning comment for production deployment
   - _Requirement: Requirement 5 - Monitoring and Observability_
 
-- [ ] 10.4.4 Test Metrics Collection
-  - Make test requests to various endpoints
-  - Verify metrics are collected (http_requests_total, http_requests_duration_seconds)
-  - Verify labels are correct (method, endpoint, status)
-  - Verify `/metrics` endpoint returns Prometheus format
+- [x] 10.4.4 Test Metrics Collection
+  - ✅ Made test requests to various endpoints (/health, /api/v1/route, /)
+  - ✅ Verified metrics are collected:
+    - `gateway_http_requests_total` (counter)
+    - `gateway_http_requests_pending` (gauge)
+    - `gateway_http_requests_duration_seconds` (histogram)
+  - ✅ Verified labels are correct (method, endpoint, status)
+  - ✅ Verified `/metrics` endpoint returns Prometheus format
+  - ✅ Tested correlation ID integration (X-Request-ID and X-Correlation-ID headers)
   - _Requirement: Requirement 5 - Monitoring and Observability_
+
+**Metrics Collected**:
+- `gateway_http_requests_total{method, status, endpoint}` - Total HTTP requests (counter)
+- `gateway_http_requests_pending{method, endpoint}` - In-flight requests (gauge)
+- `gateway_http_requests_duration_seconds{method, status, endpoint}` - Request duration (histogram)
+
+**Additional Improvements**:
+- Enhanced startup logs with emoji indicators (🚀, 📍, 🚨, 🔒)
+- Formatted endpoint list for better readability
+- Added metrics endpoint to startup log output
 
 ### Task 10.5: Enhance Health Check Endpoints
 
