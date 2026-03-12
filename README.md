@@ -34,6 +34,36 @@ curl http://localhost:3000/health
 Optional: copy `.env.example` to `.env` for local overrides. For more commands and contributor
 rules, see AGENTS.md.
 
+## Observability
+
+The gateway includes production-oriented observability primitives:
+
+- Correlation IDs (`X-Request-ID`, optional `X-Correlation-ID` echo)
+- Health and readiness endpoints (`/health`, `/ready`)
+- Prometheus metrics endpoint (`/metrics` when enabled)
+
+Quick check:
+
+```bash
+export OPENAI_API_KEY=dummy-key
+export OPENAI_BASE_URL=http://127.0.0.1:9/v1
+cargo run -p gateway
+```
+
+Then in another terminal:
+
+```bash
+curl -i http://127.0.0.1:3000/health
+curl -i http://127.0.0.1:3000/ready
+curl -i http://127.0.0.1:3000/metrics
+```
+
+Additional guides:
+
+- `docs/OBSERVABILITY.md`
+- `docs/PROMETHEUS.md`
+- `gateway/tests/OBSERVABILITY_TESTING.md`
+
 ### Code Formatting
 
 This project uses both Rust's built-in formatter and Prettier for different file types:

@@ -1,6 +1,7 @@
 // Repository Layer - gRPC client management & mocks
 
 use super::{error::IngressError, mockdata::MockDataProvider};
+use crate::core::contracts::RoutePlan;
 use crate::core::correlation::RequestContext;
 use crate::features::executor::{models::ExecutionResult, service::ExecutorService};
 use std::sync::Arc;
@@ -12,17 +13,6 @@ pub struct ContextData {
     pub conversation_history: Vec<String>,
     /// User's AI preferences and settings.
     pub user_preferences: String,
-}
-
-/// Routing strategy plan from Router Service.
-#[derive(Debug, Clone)]
-pub struct RoutePlan {
-    /// Vendor identifier (e.g., "openai", "anthropic", "cohere")
-    pub vendor_id: String,
-    /// Model identifier (e.g., "gpt-4", "claude-3-opus")
-    pub model_id: String,
-    /// Fallback strategy chain (empty in MVP)
-    pub fallback_plans: Vec<RoutePlan>,
 }
 
 /// Router Service response with routing strategy.

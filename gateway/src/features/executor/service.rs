@@ -6,7 +6,7 @@ use super::{
     models::{ExecutionParams, ExecutionResult},
     repository::ExecutorRepository,
 };
-use crate::features::ingress::repository::RoutePlan;
+use crate::core::contracts::RoutePlan;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 

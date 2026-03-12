@@ -1,6 +1,6 @@
 //! Data models for Executor Layer.
 
-use crate::features::ingress::repository::RoutePlan;
+use crate::core::contracts::RoutePlan;
 use serde::{Deserialize, Serialize};
 
 /// Complete execution request containing routing plan and payload.

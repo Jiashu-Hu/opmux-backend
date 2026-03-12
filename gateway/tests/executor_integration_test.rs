@@ -11,10 +11,8 @@
 //! OPENAI_API_KEY=your-key OPENAI_BASE_URL=https://api.openai.com/v1 cargo test --test executor_integration_test -- --nocapture
 //! ```
 
-use gateway::features::{
-    executor::{config::ExecutorConfig, service::ExecutorService},
-    ingress::repository::RoutePlan,
-};
+use gateway::core::contracts::RoutePlan;
+use gateway::features::executor::{config::ExecutorConfig, service::ExecutorService};
 use serde_json::json;
 
 /// Helper to check if integration tests should run.

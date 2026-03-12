@@ -1,6 +1,7 @@
 // Handler Layer - HTTP request/response processing
 
 use super::{
+    constants::{MAX_METADATA_SIZE, MAX_PROMPT_LENGTH, MIN_PROMPT_LENGTH},
     error::IngressError,
     service::{IngressRequest, IngressResponse, IngressService},
 };
@@ -47,12 +48,38 @@ pub async fn ingress_handler(
 ) -> Result<ResponseJson<IngressResponse>, IngressError> {
     tracing::info!("Incoming AI routing request");
 
-    // Basic request validation
-    if request.prompt.trim().is_empty() {
+    let prompt_len = request.prompt.trim().chars().count();
+
+    if prompt_len < MIN_PROMPT_LENGTH {
         tracing::warn!("Request validation failed: empty prompt");
         return Err(IngressError::InvalidRequest(
             "Prompt cannot be empty".to_string(),
         ));
+    }
+
+    if prompt_len > MAX_PROMPT_LENGTH {
+        tracing::warn!(
+            prompt_len = prompt_len,
+            "Request validation failed: prompt too long"
+        );
+        return Err(IngressError::InvalidRequest(format!(
+            "Prompt exceeds maximum length of {} characters",
+            MAX_PROMPT_LENGTH
+        )));
+    }
+
+    let metadata_size = serde_json::to_vec(&request.metadata)
+        .map(|bytes| bytes.len())
+        .unwrap_or(usize::MAX);
+    if metadata_size > MAX_METADATA_SIZE {
+        tracing::warn!(
+            metadata_size = metadata_size,
+            "Request validation failed: metadata too large"
+        );
+        return Err(IngressError::InvalidRequest(format!(
+            "Metadata exceeds maximum size of {} bytes",
+            MAX_METADATA_SIZE
+        )));
     }
 
     tracing::debug!("Request validation passed");

@@ -34,5 +34,10 @@ pub mod constants;
 /// Mock data for development and testing.
 pub mod mockdata;
 
+#[cfg(test)]
+mod handler_tests;
+#[cfg(test)]
+mod service_tests;
+
 // Re-export the handler for easy access
 pub use handler::ingress_handler;

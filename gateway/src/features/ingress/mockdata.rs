@@ -2,7 +2,8 @@
 // This file centralizes all mock data used during development
 // In production, this will be replaced with real service responses
 
-use super::repository::{ContextData, RoutePlan, RouterServiceResponse};
+use super::repository::{ContextData, RouterServiceResponse};
+use crate::core::contracts::RoutePlan;
 
 /// Mock data provider for development and testing.
 ///
