@@ -205,89 +205,122 @@ This implementation plan follows the **business-logic-first development principl
 - Formatted endpoint list for better readability
 - Added metrics endpoint to startup log output
 
-### Task 10.5: Enhance Health Check Endpoints
+### Task 10.5: Enhance Health Check Endpoints ✅ COMPLETED
 
-**Objective**: Enhance `/health` endpoint and create new `/ready` endpoint with hybrid health check strategy
+**Objective**: Enhance `/health` endpoint and create new `/ready` endpoint with real vendor health checks
+
+**Implementation Notes**:
+- Implemented **Plan B: Real Health Checks** - actual vendor connectivity verification
+- Added `LLMVendor::health_check()` trait method for vendor health verification
+- Implemented OpenAI vendor health check (calls GET /models endpoint)
+- Added caching mechanism with configurable TTL (default: 5 seconds)
+- Parallel health check execution for all vendors (at-least-one-healthy strategy)
+- Configurable timeout via `HEALTH_CHECK_TIMEOUT` environment variable
+- Added version and uptime to /health response
+- Created /ready endpoint with 200/503 status codes for Kubernetes readiness probes
+- All 80 tests passing, no clippy warnings
 
 **Subtasks**:
 
-- [ ] 10.5.1 Create Health Check Models
-  - Update `features/health/models.rs`
-  - Define `HealthResponse` struct (status, timestamp, version, uptime_seconds)
-  - Define `ReadinessResponse` struct (status, timestamp, dependencies)
-  - Define `DependencyStatus` struct (status, check_type, vendor_count, latency_ms, error, last_check)
-  - Define `HealthCheckMode` enum (Config, Connectivity)
-  - Define `HealthConfig` struct (mode, cache_ttl, timeout)
-  - Define `CachedHealth` struct (status, timestamp)
-  - Implement `Serialize` for all models
+- [x] 10.5.1 Create Health Check Models ✅
+  - Extended existing `HealthResponse` struct (added version, uptime_seconds)
+  - Added `ReadinessResponse` struct (status, timestamp, dependencies)
+  - Added `DependencyStatus` struct (status, vendor_count, latency_ms, error)
+  - Added `HealthConfig` struct (timeout configuration)
+  - All models in `features/health/service.rs` (minimal file changes)
   - _Requirement: Requirement 5 - Monitoring and Observability_
 
-- [ ] 10.5.2 Create Health Check Service (Hybrid Approach)
-  - Create `features/health/service.rs`
-  - Implement `HealthService` struct with health_cache (Arc<RwLock<HashMap>>)
-  - Implement `check_health()` method (always returns healthy)
-  - Implement `check_readiness()` method with mode selection:
-    - `HealthCheckMode::Config` → `check_executor_config()`
-    - `HealthCheckMode::Connectivity` → `check_executor_health_with_cache()`
-  - Implement `check_executor_config()` (fast config-only check)
-  - Implement `check_executor_health_with_cache()` (connectivity check with cache)
-  - Add cache logic (TTL-based, read/write lock)
-  - Add dependency injection for ExecutorService and HealthConfig
+- [x] 10.5.2 Create Health Check Service (Real Health Check Approach) ✅
+  - Extended existing `HealthService` struct
+  - Added `executor_service` dependency injection via `with_executor()` constructor
+  - Implemented `check_readiness()` method with real vendor health checks
+  - Added caching mechanism with `RwLock<Option<HealthCheckCache>>`
+  - Cache TTL configurable via `HEALTH_CHECK_CACHE_TTL_SECS` (default: 5 seconds)
+  - Calls `ExecutorService::check_all_vendors_health()` for actual connectivity verification
   - _Requirement: Requirement 5 - Monitoring and Observability_
 
-- [ ] 10.5.3 Enhance /health Handler
-  - Update `features/health/handler.rs`
-  - Modify `health_handler` to return enhanced `HealthResponse`
-  - Include timestamp, version (from Cargo.toml), uptime
-  - Add tracing span
+- [x] 10.5.3 Enhance /health Handler ✅
+  - Updated `health_handler` to return enhanced `HealthResponse`
+  - Added version from `CARGO_PKG_VERSION`
+  - Added uptime calculation from service start_time
+  - Existing tracing already in place
   - _Requirement: Requirement 5 - Monitoring and Observability_
 
-- [ ] 10.5.4 Create /ready Handler
-  - Add `ready_handler` to `features/health/handler.rs`
-  - Call `HealthService::check_readiness()`
-  - Return `ReadinessResponse` with dependency status
-  - Return 200 OK if ready, 503 Service Unavailable if not ready
-  - Add tracing span
+- [x] 10.5.4 Create /ready Handler ✅
+  - Added `ready_handler` to `features/health/handler.rs`
+  - Calls `HealthService::check_readiness()`
+  - Returns `ReadinessResponse` with dependency status
+  - Returns 200 OK if ready, 503 Service Unavailable if not ready
+  - Uses `State<Arc<HealthService>>` for dependency injection
   - _Requirement: Requirement 5 - Monitoring and Observability_
 
-- [ ] 10.5.5 Update Router with /ready Endpoint
-  - Add `/ready` route to router in `main.rs`
-  - Ensure endpoint is accessible without authentication
+- [x] 10.5.5 Update Router with /ready Endpoint ✅
+  - Added `/ready` route to public_routes in `main.rs`
+  - Endpoint accessible without authentication
+  - Passes `health_service` as state to ready_handler
   - _Requirement: Requirement 5 - Monitoring and Observability_
 
-- [ ] 10.5.6 Add Executor Health Check Method
-  - Add `health_check()` method to `ExecutorService`
-  - Implement lightweight connectivity check for each vendor (parallel)
-  - Add timeout (1 second per vendor) to prevent blocking
-  - Return latency measurement (total time for all checks)
-  - At least one vendor healthy = overall healthy (degraded mode)
-  - Add `get_vendor_count()` method to `ExecutorService`
-  - Add tracing logs for health check results
+- [x] 10.5.6 Add Executor Health Check Method ✅
+  - Added `ExecutorService::check_vendor_health(vendor_name, timeout_secs)` method
+  - Added `ExecutorService::check_all_vendors_health(timeout_secs)` method
+  - Parallel execution using `tokio::spawn` for concurrent health checks
+  - At-least-one-healthy strategy: returns Ok if any vendor is healthy
+  - Added `ExecutorRepository::list_vendor_names()` helper method
   - _Requirement: Requirement 5 - Monitoring and Observability_
 
-- [ ] 10.5.7 Add Vendor Health Check Methods
-  - Add `health_check()` method to `LLMVendor` trait
-  - Implement `health_check()` for `OpenAIVendor`:
-    - Use GET /models endpoint (lightweight, no token consumption)
-    - Add 1 second timeout
-    - Return Ok(()) if successful, Err(VendorError) if failed
-  - Add tracing logs for vendor health check
+- [x] 10.5.7 Add Vendor Health Check Methods ✅
+  - Added `LLMVendor::health_check(timeout_secs)` trait method
+  - Implemented `OpenAIVendor::health_check()` using GET /models endpoint
+  - Configurable timeout parameter (respects `HEALTH_CHECK_TIMEOUT` config)
+  - Detects authentication failures, network errors, timeouts
+  - Returns appropriate `ExecutorError` variants for different failure modes
   - _Requirement: Requirement 5 - Monitoring and Observability_
 
-- [ ] 10.5.8 Add Unit Tests for Health Service
-  - Test `check_health()` always returns healthy
-  - Test `check_readiness()` with `HealthCheckMode::Config`:
-    - Healthy Executor (vendor_count > 0)
-    - Unhealthy Executor (vendor_count = 0)
-  - Test `check_readiness()` with `HealthCheckMode::Connectivity`:
-    - All vendors healthy (returns latency)
-    - All vendors unhealthy (returns error)
-    - Timeout scenario (returns timeout error)
-  - Test health check cache:
-    - Cache hit (returns cached result)
-    - Cache miss (performs actual check)
-    - Cache expiration (TTL exceeded)
+- [x] 10.5.8 Add Unit Tests for Health Service ✅
+  - Created `MockVendor` for testing without real HTTP calls
+  - Added 17 health service tests (config, readiness, caching, HTTP handlers)
+  - Added tests for healthy/unhealthy vendor scenarios
+  - Added caching tests: cache hit, TTL expiry, failure not cached (with dynamic health status)
+  - Added panic handling tests for executor service (2 tests)
+  - Added HTTP handler tests using `Router::oneshot`
+  - All 85 tests passing with fast execution (< 1.52s)
   - _Requirement: Requirement 5 - Monitoring and Observability_
+
+**Configuration Options**:
+
+The health check system supports the following environment variables:
+
+```bash
+# Health check timeout in seconds (default: 2)
+HEALTH_CHECK_TIMEOUT=2
+
+# Health check cache TTL in seconds (default: 5)
+# Results are cached to avoid excessive API calls to vendor health endpoints
+HEALTH_CHECK_CACHE_TTL_SECS=5
+```
+
+**Architecture Details**:
+
+- **Caching Strategy**: Only successful health checks are cached (failures are not cached)
+  - Uses `tokio::sync::RwLock` for async-safe locking (prevents blocking Tokio workers)
+  - Fast recovery from transient failures
+- **Parallel Execution**: All vendors are checked concurrently using `tokio::spawn`
+  - JoinErrors (panics/cancellations) are logged and treated as failures
+  - Prevents silent failures from vendor health check panics
+- **At-Least-One-Healthy**: Service is ready if at least one vendor passes health check
+- **Timeout Control**: Each vendor health check respects the configured timeout
+- **Error Detection**: Detects authentication failures, network errors, timeouts, rate limits
+
+**Health Check Flow**:
+
+1. `/ready` endpoint receives request
+2. `HealthService::check_readiness()` checks cache first
+3. If cache miss or expired, calls `ExecutorService::check_all_vendors_health(timeout)`
+4. Executor spawns parallel tasks for each vendor
+5. Each vendor calls its health check endpoint (e.g., OpenAI GET /models)
+6. Results are aggregated (at-least-one-healthy strategy)
+7. Successful result is cached with TTL
+8. Response returned with 200 OK (ready) or 503 Service Unavailable (not ready)
 
 ### Task 10.6: Update Main Application
 

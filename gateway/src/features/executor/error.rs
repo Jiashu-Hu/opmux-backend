@@ -29,8 +29,13 @@ pub enum ExecutorError {
     ApiCallFailed(String),
 
     /// Rate limit exceeded by vendor API.
-    #[error("Rate limit exceeded for vendor '{0}'")]
-    RateLimitExceeded(String),
+    #[error("Rate limit exceeded for vendor '{vendor}'")]
+    RateLimitExceeded {
+        /// Vendor identifier (e.g., "openai")
+        vendor: String,
+        /// Optional retry-after hint in milliseconds
+        retry_after_ms: Option<u64>,
+    },
 
     /// Authentication failed (invalid API key).
     #[error("Authentication failed for vendor '{0}'")]
@@ -78,7 +83,7 @@ impl IntoResponse for ExecutorError {
                 "authentication_failed",
                 format!("Authentication failed for vendor '{}'", vendor),
             ),
-            Self::RateLimitExceeded(vendor) => (
+            Self::RateLimitExceeded { vendor, .. } => (
                 StatusCode::TOO_MANY_REQUESTS,
                 "rate_limit_exceeded",
                 format!("Rate limit exceeded for vendor '{}'", vendor),
@@ -133,7 +138,10 @@ impl From<reqwest::Error> for ExecutorError {
                 if status.as_u16() == 401 {
                     Self::AuthenticationFailed("unknown".to_string())
                 } else if status.as_u16() == 429 {
-                    Self::RateLimitExceeded("unknown".to_string())
+                    Self::RateLimitExceeded {
+                        vendor: "unknown".to_string(),
+                        retry_after_ms: None,
+                    }
                 } else {
                     Self::ApiCallFailed(format!("HTTP {}: {}", status, err))
                 }

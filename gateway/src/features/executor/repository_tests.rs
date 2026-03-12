@@ -62,6 +62,11 @@ mod tests {
         ) -> f64 {
             0.001
         }
+
+        async fn health_check(&self, _timeout_secs: u64) -> Result<(), ExecutorError> {
+            // Mock vendor always returns healthy
+            Ok(())
+        }
     }
 
     // Helper function to create a test ExecutorRepository with OpenAI vendor

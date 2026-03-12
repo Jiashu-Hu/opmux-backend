@@ -17,6 +17,8 @@
 //!   -H "Content-Type: application/json" \
 //!   -d '{"prompt": "Hello!", "metadata": {}}'
 //! ```
+//!
+//! The service normalizes `prompt` into `messages` before execution.
 
 /// Error handling for ingress operations.
 pub mod error;

@@ -1,7 +1,8 @@
 // Handler Layer - HTTP request/response processing
 
-use super::{error::HealthError, service::HealthService};
-use axum::response::Json;
+use super::error::HealthError;
+use crate::AppState;
+use axum::{extract::State, http::StatusCode, response::Json};
 
 /// HTTP handler for health check endpoints.
 ///
@@ -40,15 +41,74 @@ use axum::response::Json;
 /// ```bash
 /// curl http://localhost:3000/health
 /// ```
-pub async fn health_handler() -> Result<Json<super::service::HealthResponse>, HealthError>
-{
-    let service = HealthService::new();
-
-    match service.check_health().await {
+pub async fn health_handler(
+    State(app_state): State<AppState>,
+) -> Result<Json<super::service::HealthResponse>, HealthError> {
+    match app_state.health_service.check_health().await {
         Ok(health_status) => Ok(Json(health_status)),
         Err(error) => {
             // Error logging is now handled by AppError in core/error.rs
             Err(error)
         }
+    }
+}
+
+/// HTTP handler for readiness check endpoints.
+///
+/// This handler provides a Kubernetes-compatible readiness probe endpoint that
+/// checks if the service is ready to accept traffic by verifying dependencies.
+///
+/// # HTTP Response
+///
+/// ## Success Response (200 OK)
+/// ```json
+/// {
+///   "status": "ready",
+///   "timestamp": "2025-09-01T16:53:30.625665+00:00",
+///   "dependencies": {
+///     "status": "healthy",
+///     "vendor_count": 2
+///   }
+/// }
+/// ```
+///
+/// ## Not Ready Response (503 Service Unavailable)
+/// ```json
+/// {
+///   "status": "not_ready",
+///   "timestamp": "2025-09-01T16:53:30.625665+00:00",
+///   "dependencies": {
+///     "status": "unhealthy",
+///     "vendor_count": 0,
+///     "error": "No LLM vendors configured"
+///   }
+/// }
+/// ```
+///
+/// # Usage
+///
+/// This handler is typically mounted at `/ready` and used by:
+/// - Kubernetes readiness probes
+/// - Load balancers for traffic routing decisions
+/// - Monitoring systems for dependency health
+///
+/// # Examples
+///
+/// ```bash
+/// curl http://localhost:3000/ready
+/// ```
+pub async fn ready_handler(
+    State(app_state): State<AppState>,
+) -> Result<(StatusCode, Json<super::service::ReadinessResponse>), HealthError> {
+    match app_state.health_service.check_readiness().await {
+        Ok(readiness) => {
+            let status_code = if readiness.status == "ready" {
+                StatusCode::OK
+            } else {
+                StatusCode::SERVICE_UNAVAILABLE
+            };
+            Ok((status_code, Json(readiness)))
+        }
+        Err(error) => Err(error),
     }
 }

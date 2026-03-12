@@ -63,6 +63,14 @@ impl ExecutorRepository {
         self.vendors.len()
     }
 
+    /// Lists all registered vendor names.
+    ///
+    /// # Returns
+    /// Vector of vendor identifiers (e.g., ["openai", "anthropic"])
+    pub fn list_vendor_names(&self) -> Vec<String> {
+        self.vendors.keys().cloned().collect()
+    }
+
     /// Selects vendor by vendor_id.
     ///
     /// # Parameters

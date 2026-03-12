@@ -21,55 +21,89 @@ Keep this managed block so 'openspec update' can refresh the instructions.
 
 <!-- OPENSPEC:END -->
 
-# Repository Guidelines
+# PROJECT KNOWLEDGE BASE
 
-## Project Structure & Module Organization
+**Generated:** 2026-03-12 **Commit:** 8b453e0 **Branch:** main
 
-- `common/` — Shared Rust crate for utilities.
-- `gateway/` — Main Axum HTTP service (entrypoint `src/main.rs`).
-- `scripts/` — Security and git hook helpers (e.g., `check-security.sh`).
-- `specs/`, `docs/`, `.augment/` — Design, docs, and development rules (read before major changes).
-- `.github/workflows/` — CI for tests, fmt, clippy, prettier, audit.
+## OVERVIEW
 
-## Build, Test, and Development Commands
+Rust workspace centered on the `gateway` Axum service. Runtime code follows strict
+handler/service/repository boundaries, while planning/process knowledge is split across `openspec`,
+`specs`, `docs`, and `.augment/rules`.
 
-- Build: `cargo build` (release: `cargo build --release`).
-- Run gateway: `cargo run -p gateway` → serves on `0.0.0.0:3000`.
-  - Example: `curl http://localhost:3000/health`
-- Test: `cargo test` (verbose: `cargo test --verbose`).
-- Lint: `cargo clippy --all-targets --all-features -- -D warnings`.
-- Format (Rust): `cargo fmt` (check: `cargo fmt -- --check`).
-- Format (other files): `npm run format` (check: `npm run format:check`).
-- Security checks: `./scripts/check-security.sh` (run before PRs).
+## STRUCTURE
 
-## Coding Style & Naming Conventions
+```
+./
+├── common/                  # Shared crate boundary (small today)
+├── gateway/                 # Axum service crate
+│   ├── src/                 # Runtime code (core, middleware, features)
+│   └── tests/               # Integration tests (real external calls)
+├── specs/                   # Legacy design and requirement documents
+├── openspec/                # Spec workflow and proposal process rules
+├── docs/                    # Engineering/changelog documentation
+├── scripts/                 # CI and developer safety scripts
+└── .augment/rules/          # Architecture and coding rules
+```
 
-- Rustfmt enforced (`rustfmt.toml`, `edition=2021`, `max_width=90`).
-- Prettier for Markdown/YAML/JSON/TOML.
-- Naming: crates/modules/functions `snake_case`; types `CamelCase`; constants
-  `SCREAMING_SNAKE_CASE`.
-- Gateway features follow 3-layer pattern: `handler.rs` (HTTP), `service.rs` (business),
-  `repository.rs` (data).
+## WHERE TO LOOK
 
-## Testing Guidelines
+| Task                       | Location                                 | Notes                                                 |
+| -------------------------- | ---------------------------------------- | ----------------------------------------------------- |
+| Service startup and routes | `gateway/src/main.rs`                    | Router composition, middleware order, server boot     |
+| Cross-cutting config       | `gateway/src/core/config.rs`             | Env loading, defaults, validation                     |
+| Feature layering pattern   | `gateway/src/features/*`                 | `handler.rs`, `service.rs`, `repository.rs`           |
+| LLM vendor integration     | `gateway/src/features/executor/vendors/` | Vendor trait + OpenAI implementation                  |
+| Health/readiness behavior  | `gateway/src/features/health/`           | Success-only cache and dependency checks              |
+| Integration test rules     | `gateway/tests/AGENTS.md`                | Local test policy, env requirements, cost notes       |
+| Spec/proposal process      | `openspec/AGENTS.md`                     | Authoritative rules for proposal/spec change workflow |
+| Architecture guardrails    | `.augment/rules/`                        | Layering, error design, migration constraints         |
 
-- Use Rust unit tests with `#[test]` inside `mod tests` next to code.
-- Integration tests may live under `gateway/tests/` when needed.
-- Keep tests deterministic and isolated; prefer feature-level service tests over handler-only tests.
-- Run `cargo test` locally; CI must be green.
+## CODE MAP
 
-## Commit & Pull Request Guidelines
+| Symbol               | Type   | Location                                          | Refs | Role                           |
+| -------------------- | ------ | ------------------------------------------------- | ---- | ------------------------------ |
+| `ExecutorService`    | struct | `gateway/src/features/executor/service.rs`        | high | Retry/fallback orchestration   |
+| `ExecutorRepository` | struct | `gateway/src/features/executor/repository.rs`     | high | Vendor registry + direct calls |
+| `OpenAIVendor`       | struct | `gateway/src/features/executor/vendors/openai.rs` | high | OpenAI API client              |
+| `IngressService`     | struct | `gateway/src/features/ingress/service.rs`         | high | Request orchestration          |
+| `Config`             | struct | `gateway/src/core/config.rs`                      | high | Global config + env loading    |
 
-- Use Conventional Commits: `feat:`, `fix:`, `refactor:`, `docs:`, `style:`.
-- PRs must include: clear description, linked issues, reproduction steps, and relevant
-  screenshots/logs (e.g., curl output).
-- Requirements: CI green (tests, fmt, clippy, prettier, audit) and `./scripts/check-security.sh`
-  passes.
+## CONVENTIONS
 
-## Security & Configuration Tips
+- Gateway feature logic stays in service/repository; handlers remain HTTP translation only.
+- Feature config should route through core config when possible.
+- Error types are modeled per feature and aggregated at app boundary.
+- Use child `AGENTS.md` files as scope-local deltas; avoid copying root sections verbatim.
 
-- Copy `.env.example` → `.env` for local dev; never commit `.env`.
-- Do not enable `AUTH_DEVELOPMENT_MODE` in committed code or CI. Local-only usage is allowed but
-  must not be pushed.
-- Production requires `X-API-Key` header; dev mode bypass is for local testing only.
-- Install hooks (optional): `./scripts/install-hooks.sh` to enforce local checks.
+## ANTI-PATTERNS (THIS PROJECT)
+
+- Do not bypass handler/service/repository boundaries or call external systems from handlers.
+- Do not enable `AUTH_DEVELOPMENT_MODE` in committed code or CI.
+- Do not implement retry logic in vendor clients; keep retry/fallback in service layer.
+- Do not start implementation for spec/proposal requests before applying `openspec` workflow.
+
+## UNIQUE STYLES
+
+- Executor uses a vendor plugin pattern (`vendors/traits.rs`) with centralized retry/fallback.
+- Health checks cache only successful dependency states; failures are intentionally uncached.
+- Middleware ordering is explicit in startup wiring and should be treated as behavior-critical.
+
+## COMMANDS
+
+```bash
+cargo build
+cargo run -p gateway
+cargo test
+cargo clippy --all-targets --all-features -- -D warnings
+cargo fmt
+npm run format
+./scripts/check-security.sh
+```
+
+## NOTES
+
+- Integration tests under `gateway/tests` are external-call tests and skip when `OPENAI_API_KEY` is
+  unset.
+- `README.md` still shows an older top-level `src/` shape; prefer this AGENTS structure map for
+  navigation.

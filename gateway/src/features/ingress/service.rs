@@ -107,7 +107,12 @@ impl IngressService {
         // Step 2: Build payload
         tracing::debug!("Building request payload");
         let payload = serde_json::json!({
-            "prompt": request.prompt,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": request.prompt,
+                }
+            ],
             "metadata": request.metadata,
         });
 

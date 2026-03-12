@@ -55,19 +55,30 @@ async fn main() {
         executor_service.vendor_count()
     );
 
+    // Initialize HealthService with ExecutorService dependency
+    let health_service = Arc::new(health::HealthService::with_executor(
+        executor_service.clone(),
+    ));
+    tracing::info!("HealthService initialized");
+
     // Create application state with all shared services
-    let app_state = AppState { executor_service };
+    let app_state = AppState {
+        executor_service,
+        health_service,
+    };
 
     // Create protected routes that require authentication
     let protected_routes = Router::new()
         .route("/api/v1/route", post(ingress::ingress_handler))
         .layer(middleware::from_fn(auth::auth_middleware))
-        .with_state(app_state);
+        .with_state(app_state.clone());
 
     // Create public routes that don't require authentication
     let public_routes = Router::new()
         .route("/", get(hello_world))
-        .route("/health", get(health::health_handler));
+        .route("/health", get(health::health_handler))
+        .route("/ready", get(health::ready_handler))
+        .with_state(app_state.clone());
 
     // Combine routes and apply middleware stack
     // Middleware is applied in reverse order (bottom to top):

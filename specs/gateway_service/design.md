@@ -162,6 +162,7 @@ gateway/
 4. **Request Processing**
 
    - Parse request payload (prompt + metadata)
+   - Normalize prompt into messages array for executor payload
    - Determine service routing based on rewrite flag
    - Create correlation ID for tracing
 

@@ -213,8 +213,9 @@ OpenAI API Error
     ↓
 Parse HTTP status code
     ↓
-401 → ExecutorError::AuthenticationFailed
-429 → ExecutorError::RateLimitExceeded
+401/403 → ExecutorError::AuthenticationFailed
+429 → ExecutorError::RateLimitExceeded (with Retry-After when present)
+4xx → ExecutorError::InvalidPayload
 5xx → ExecutorError::ApiCallFailed
 Timeout → ExecutorError::TimeoutError
     ↓
@@ -396,7 +397,7 @@ impl ExecutorService {
 
 **Supported Vendors** (MVP):
 
-- ✅ OpenAI (messages, temperature, max_tokens, top_p, stream)
+- ✅ OpenAI (messages, temperature, max_tokens, top_p; stream is currently rejected)
 - ✅ Anthropic (same format, compatible)
 - ✅ Grok (same format, compatible)
 - ✅ Google AI (same format, compatible)

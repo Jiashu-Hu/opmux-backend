@@ -9,8 +9,9 @@ use crate::features::executor::{
     vendors::traits::LLMVendor,
 };
 use async_trait::async_trait;
-use reqwest::Client;
+use reqwest::{header, Client, StatusCode};
 use serde::{Deserialize, Serialize};
+use std::time::Duration;
 
 /// OpenAI Chat Completions API request.
 #[derive(Debug, Deserialize, Serialize)]
@@ -60,10 +61,19 @@ impl OpenAIVendor {
     /// # Parameters
     /// - `config` - OpenAI configuration with API key, base URL, and pricing
     pub fn new(config: OpenAIConfig) -> Self {
-        Self {
-            config,
-            client: reqwest::Client::new(),
-        }
+        let timeout = Duration::from_millis(config.timeout_ms);
+        let client = Client::builder()
+            .timeout(timeout)
+            .connect_timeout(timeout)
+            .build()
+            .unwrap_or_else(|error| {
+                tracing::error!(
+                    error = ?error,
+                    "Failed to build OpenAI HTTP client; falling back to defaults"
+                );
+                Client::new()
+            });
+        Self { config, client }
     }
 }
 
@@ -107,6 +117,11 @@ impl LLMVendor for OpenAIVendor {
                 self.vendor_id().to_string(),
             ));
         }
+        if params.stream {
+            return Err(ExecutorError::InvalidPayload(
+                "Streaming is not supported for OpenAI requests".to_string(),
+            ));
+        }
 
         let request = ChatCompletionRequest {
             messages: params.messages,
@@ -127,11 +142,36 @@ impl LLMVendor for OpenAIVendor {
 
         if !response.status().is_success() {
             let status = response.status();
+            let retry_after_ms = if status == StatusCode::TOO_MANY_REQUESTS {
+                response
+                    .headers()
+                    .get(header::RETRY_AFTER)
+                    .and_then(|value| value.to_str().ok())
+                    .and_then(|value| value.parse::<u64>().ok())
+                    .map(|seconds| seconds.saturating_mul(1000))
+            } else {
+                None
+            };
             let error_text = response.text().await.unwrap_or_default();
-            return Err(ExecutorError::ApiCallFailed(format!(
-                "OpenAI API error {}: {}",
-                status, error_text
-            )));
+            return Err(match status {
+                StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => {
+                    ExecutorError::AuthenticationFailed("openai".to_string())
+                }
+                StatusCode::TOO_MANY_REQUESTS => ExecutorError::RateLimitExceeded {
+                    vendor: "openai".to_string(),
+                    retry_after_ms,
+                },
+                status if status.is_client_error() => ExecutorError::InvalidPayload(
+                    format!("OpenAI API error {}: {}", status, error_text),
+                ),
+                status if status.is_server_error() => ExecutorError::ApiCallFailed(
+                    format!("OpenAI API error {}: {}", status, error_text),
+                ),
+                _ => ExecutorError::ApiCallFailed(format!(
+                    "OpenAI API error {}: {}",
+                    status, error_text
+                )),
+            });
         }
 
         let api_response: ChatCompletionResponse = response.json().await?;
@@ -157,5 +197,62 @@ impl LLMVendor for OpenAIVendor {
             total_cost,
             finish_reason,
         })
+    }
+
+    async fn health_check(&self, timeout_secs: u64) -> Result<(), ExecutorError> {
+        // Use GET /models endpoint for health check
+        // This is a lightweight endpoint that:
+        // - Requires valid API key (verifies authentication)
+        // - Returns quickly (typically < 500ms)
+        // - Doesn't consume tokens
+        let url = format!("{}/models", self.config.base_url);
+
+        // Reuse self.client for connection pooling and TLS session reuse
+        // Use tokio::time::timeout for per-request timeout control
+        let request_future = self
+            .client
+            .get(&url)
+            .header("Authorization", format!("Bearer {}", self.config.api_key))
+            .send();
+
+        // Apply per-request timeout using tokio::time::timeout
+        let response = tokio::time::timeout(
+            std::time::Duration::from_secs(timeout_secs),
+            request_future,
+        )
+        .await
+        .map_err(|_| ExecutorError::TimeoutError(timeout_secs * 1000))? // Timeout elapsed
+        .map_err(|e| {
+            // Request failed (not timeout)
+            if e.is_connect() {
+                ExecutorError::NetworkError(format!(
+                    "Failed to connect to OpenAI API: {}",
+                    e
+                ))
+            } else {
+                ExecutorError::NetworkError(e.to_string())
+            }
+        })?;
+
+        // Check response status
+        match response.status() {
+            reqwest::StatusCode::OK => {
+                tracing::debug!("OpenAI health check passed");
+                Ok(())
+            }
+            reqwest::StatusCode::UNAUTHORIZED | reqwest::StatusCode::FORBIDDEN => {
+                Err(ExecutorError::AuthenticationFailed("openai".to_string()))
+            }
+            reqwest::StatusCode::TOO_MANY_REQUESTS => {
+                Err(ExecutorError::RateLimitExceeded {
+                    vendor: "openai".to_string(),
+                    retry_after_ms: None,
+                })
+            }
+            status => Err(ExecutorError::ApiCallFailed(format!(
+                "Health check failed with status: {}",
+                status
+            ))),
+        }
     }
 }

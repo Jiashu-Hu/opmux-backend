@@ -58,5 +58,10 @@ pub mod repository;
 /// Contains business logic for health check orchestration and status determination.
 pub mod service;
 
-// Re-export the handler for easy access
-pub use handler::health_handler;
+/// Unit tests for HealthService.
+#[cfg(test)]
+mod service_tests;
+
+// Re-export handlers and service for easy access
+pub use handler::{health_handler, ready_handler};
+pub use service::HealthService;

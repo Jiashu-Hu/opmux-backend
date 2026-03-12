@@ -8,6 +8,7 @@ use super::{
 };
 use crate::features::ingress::repository::RoutePlan;
 use std::sync::Arc;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Service for LLM execution with business logic.
 ///
@@ -44,6 +45,119 @@ impl ExecutorService {
     /// Useful for logging and monitoring vendor availability.
     pub fn vendor_count(&self) -> usize {
         self.repository.vendor_count()
+    }
+
+    /// Checks health of a specific vendor.
+    ///
+    /// Makes a lightweight API call to verify vendor connectivity and credentials.
+    ///
+    /// # Parameters
+    /// - `vendor_name` - Name of the vendor to check (e.g., "openai")
+    /// - `timeout_secs` - Timeout in seconds for the health check request
+    ///
+    /// # Returns
+    /// - `Ok(())` if the vendor is healthy and accessible
+    /// - `Err(ExecutorError)` if the vendor is unhealthy or not found
+    ///
+    /// # Errors
+    /// - `ExecutorError::UnsupportedVendor` - Vendor not found in registry
+    /// - `ExecutorError::AuthenticationFailed` - Invalid API key
+    /// - `ExecutorError::TimeoutError` - Request timed out
+    /// - `ExecutorError::NetworkError` - Network connectivity issues
+    pub async fn check_vendor_health(
+        &self,
+        vendor_name: &str,
+        timeout_secs: u64,
+    ) -> Result<(), ExecutorError> {
+        let vendor = self.repository.get_vendor(vendor_name)?;
+        vendor.health_check(timeout_secs).await
+    }
+
+    /// Checks health of all configured vendors.
+    ///
+    /// Performs health checks on all vendors in parallel.
+    ///
+    /// # Parameters
+    /// - `timeout_secs` - Timeout in seconds for each health check request
+    ///
+    /// # Returns
+    /// - `Ok(())` if at least one vendor is healthy
+    /// - `Err(ExecutorError)` if all vendors are unhealthy or no vendors configured
+    ///
+    /// # Errors
+    /// - `ExecutorError::NoVendorsConfigured` - No vendors in registry
+    /// - Other errors if all vendors fail health checks
+    pub async fn check_all_vendors_health(
+        &self,
+        timeout_secs: u64,
+    ) -> Result<(), ExecutorError> {
+        let vendor_names = self.repository.list_vendor_names();
+
+        if vendor_names.is_empty() {
+            return Err(ExecutorError::NoVendorsConfigured);
+        }
+
+        // Check all vendors in parallel using tokio::spawn
+        let mut handles = Vec::new();
+        for vendor_name in vendor_names.clone() {
+            let vendor = self.repository.get_vendor(&vendor_name)?;
+            let handle = tokio::spawn(async move {
+                let result = vendor.health_check(timeout_secs).await;
+                (vendor_name, result)
+            });
+            handles.push(handle);
+        }
+
+        // Wait for all checks to complete
+        let mut results = Vec::new();
+        for handle in handles {
+            match handle.await {
+                Ok(result) => {
+                    results.push(result);
+                }
+                Err(join_error) => {
+                    // Task panicked or was cancelled - treat as a health check failure
+                    tracing::error!(
+                        error = %join_error,
+                        "Health check task failed (panic or cancellation)"
+                    );
+                    // Create a synthetic failure result for this vendor
+                    // We don't have the vendor name here, so we'll treat it as a generic failure
+                    results.push((
+                        "unknown".to_string(),
+                        Err(ExecutorError::NetworkError(format!(
+                            "Health check task failed: {}",
+                            join_error
+                        ))),
+                    ));
+                }
+            }
+        }
+
+        // If at least one vendor is healthy, return Ok
+        let healthy_count = results.iter().filter(|(_, result)| result.is_ok()).count();
+
+        if healthy_count > 0 {
+            tracing::debug!(
+                healthy_count = healthy_count,
+                total_count = vendor_names.len(),
+                "Health check completed"
+            );
+            Ok(())
+        } else {
+            // All vendors failed, return the first error
+            let first_error = results
+                .into_iter()
+                .find(|(_, result)| result.is_err())
+                .map(|(_, result)| result.unwrap_err())
+                .unwrap_or(ExecutorError::NoVendorsConfigured);
+
+            tracing::warn!(
+                error = ?first_error,
+                "All vendors failed health check"
+            );
+            Err(first_error)
+        }
     }
 
     /// Executes LLM call with retry logic and exponential backoff.
@@ -85,21 +199,26 @@ impl ExecutorService {
     ) -> Result<ExecutionResult, ExecutorError> {
         let max_retries = self.config.max_retries;
         let mut last_error = None;
+        let mut retry_after_ms: Option<u64> = None;
 
         // Retry loop with exponential backoff
         for attempt in 0..=max_retries {
             if attempt > 0 {
-                // Exponential backoff: 1s, 2s, 4s, 8s, ...
-                let backoff_ms = 1000 * (2_u64.pow(attempt - 1));
+                // Exponential backoff with full jitter
+                let backoff_ms = Self::jittered_backoff_ms(attempt);
+                let delay_ms = retry_after_ms
+                    .take()
+                    .map(|ms| ms.max(backoff_ms))
+                    .unwrap_or(backoff_ms);
                 tracing::info!(
                     "Retrying execution: attempt {}/{}, vendor={}, model={}, backoff={}ms",
                     attempt,
                     max_retries,
                     vendor_id,
                     model_id,
-                    backoff_ms
+                    delay_ms
                 );
-                tokio::time::sleep(tokio::time::Duration::from_millis(backoff_ms)).await;
+                tokio::time::sleep(tokio::time::Duration::from_millis(delay_ms)).await;
             }
 
             // Attempt execution via repository
@@ -118,6 +237,14 @@ impl ExecutorService {
                 Err(e) => {
                     // Determine if error is retryable
                     if Self::is_retryable_error(&e) {
+                        let rate_limit_retry_after = match &e {
+                            ExecutorError::RateLimitExceeded {
+                                retry_after_ms: Some(ms),
+                                ..
+                            } => Some(*ms),
+                            _ => None,
+                        };
+                        retry_after_ms = rate_limit_retry_after;
                         tracing::warn!(
                             "Retryable error on attempt {}/{}: vendor={}, model={}, error={:?}",
                             attempt,
@@ -172,9 +299,26 @@ impl ExecutorService {
             error,
             ExecutorError::NetworkError(_)
                 | ExecutorError::TimeoutError(_)
-                | ExecutorError::RateLimitExceeded(_)
+                | ExecutorError::RateLimitExceeded { .. }
                 | ExecutorError::ApiCallFailed(_)
         )
+    }
+
+    fn jittered_backoff_ms(attempt: u32) -> u64 {
+        let exp = attempt.saturating_sub(1);
+        let base_ms = 1000_u64.saturating_mul(2_u64.saturating_pow(exp));
+        Self::pseudo_random_ms(base_ms)
+    }
+
+    fn pseudo_random_ms(upper_ms: u64) -> u64 {
+        if upper_ms == 0 {
+            return 0;
+        }
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .subsec_nanos() as u64;
+        nanos % (upper_ms + 1)
     }
 
     /// Executes fallback plans sequentially.

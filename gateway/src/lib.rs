@@ -33,4 +33,7 @@ pub mod middleware;
 pub struct AppState {
     /// Shared ExecutorService for LLM execution across all requests
     pub executor_service: Arc<features::executor::service::ExecutorService>,
+
+    /// Shared HealthService for health and readiness checks
+    pub health_service: Arc<features::health::HealthService>,
 }

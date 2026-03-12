@@ -46,4 +46,30 @@ pub trait LLMVendor: Send + Sync {
         completion_tokens: i64,
         model: &str,
     ) -> f64;
+
+    /// Performs a health check to verify vendor connectivity and credentials.
+    ///
+    /// This method makes a lightweight API call to verify:
+    /// - API credentials are valid
+    /// - Upstream service is reachable
+    /// - Network connectivity is working
+    ///
+    /// # Parameters
+    /// - `timeout_secs` - Timeout in seconds for the health check request
+    ///
+    /// # Implementation Guidelines
+    /// - Use a lightweight endpoint (e.g., GET /models for OpenAI)
+    /// - Respect the timeout parameter
+    /// - Don't retry on failure (health checks should be fast)
+    ///
+    /// # Returns
+    /// - `Ok(())` if the vendor is healthy and accessible
+    /// - `Err(ExecutorError)` if the vendor is unhealthy, unreachable, or credentials are invalid
+    ///
+    /// # Errors
+    /// - `ExecutorError::AuthenticationFailed` - Invalid API key
+    /// - `ExecutorError::TimeoutError` - Request timed out
+    /// - `ExecutorError::NetworkError` - Network connectivity issues
+    /// - `ExecutorError::ApiCallFailed` - Other API errors
+    async fn health_check(&self, timeout_secs: u64) -> Result<(), ExecutorError>;
 }

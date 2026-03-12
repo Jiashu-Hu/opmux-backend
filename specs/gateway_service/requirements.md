@@ -21,7 +21,8 @@ unified Gateway endpoint, so that the system can correctly route to appropriate 
 #### Acceptance Criteria
 
 1. When receiving a POST request to `/api/v1/route`, the Gateway Service shall accept JSON payload
-   containing prompt and metadata fields.
+   containing prompt and metadata fields. The service SHALL normalize prompt into a messages array
+   before execution.
 2. When metadata contains rewrite flag as true, the Gateway Service shall route request to Rewrite
    Service before Router Service.
 3. When metadata contains rewrite flag as false, the Gateway Service shall route request directly to

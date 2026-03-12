@@ -117,6 +117,18 @@ mod tests {
         ) -> f64 {
             0.001
         }
+
+        async fn health_check(&self, _timeout_secs: u64) -> Result<(), ExecutorError> {
+            // Check if we should fail (same logic as execute)
+            if let Some(ref counter) = self.fail_count {
+                let remaining = counter.load(Ordering::SeqCst);
+                if remaining > 0 {
+                    return Err(self.failure_error.clone().unwrap());
+                }
+            }
+            // Success case
+            Ok(())
+        }
     }
 
     // Helper function to create a test ExecutorService with OpenAI vendor
@@ -210,7 +222,10 @@ mod tests {
 
     #[test]
     fn test_is_retryable_error_rate_limit() {
-        let error = ExecutorError::RateLimitExceeded("openai".to_string());
+        let error = ExecutorError::RateLimitExceeded {
+            vendor: "openai".to_string(),
+            retry_after_ms: None,
+        };
         assert!(ExecutorService::is_retryable_error(&error));
     }
 
@@ -477,6 +492,165 @@ mod tests {
                 assert_eq!(msg, "Invalid API key");
             }
             _ => panic!("Expected AuthenticationFailed error"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_check_all_vendors_health_handles_panic() {
+        // Create a mock vendor that panics during health check
+        #[derive(Clone)]
+        struct PanicVendor {
+            vendor_id: String,
+        }
+
+        #[async_trait]
+        impl LLMVendor for PanicVendor {
+            async fn execute(
+                &self,
+                _model: &str,
+                _params: ExecutionParams,
+            ) -> Result<ExecutionResult, ExecutorError> {
+                panic!("Mock panic in execute");
+            }
+
+            fn vendor_id(&self) -> &str {
+                &self.vendor_id
+            }
+
+            fn supports_model(&self, _model: &str) -> bool {
+                true
+            }
+
+            fn calculate_cost(
+                &self,
+                _prompt_tokens: i64,
+                _completion_tokens: i64,
+                _model: &str,
+            ) -> f64 {
+                0.0
+            }
+
+            async fn health_check(
+                &self,
+                _timeout_secs: u64,
+            ) -> Result<(), ExecutorError> {
+                panic!("Mock panic in health check");
+            }
+        }
+
+        // Create repository with panic vendor and one healthy vendor
+        let mut vendors: HashMap<String, Arc<dyn LLMVendor>> = HashMap::new();
+        vendors.insert(
+            "panic-vendor".to_string(),
+            Arc::new(PanicVendor {
+                vendor_id: "panic-vendor".to_string(),
+            }),
+        );
+        vendors.insert(
+            "healthy-vendor".to_string(),
+            Arc::new(MockVendor::new_success("healthy-vendor", vec!["model-1"])),
+        );
+
+        let repository = ExecutorRepository { vendors };
+        let service = ExecutorService {
+            repository: Arc::new(repository),
+            config: ExecutorConfig {
+                openai: None,
+                anthropic_api_key: None,
+                timeout_ms: 30000,
+                max_retries: 3,
+            },
+        };
+
+        // Call check_all_vendors_health
+        // Should succeed because at least one vendor (healthy-vendor) is healthy
+        // The panic vendor should be logged as an error but not cause the whole check to fail
+        let result = service.check_all_vendors_health(2).await;
+
+        // Should succeed because we have at least one healthy vendor
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_check_all_vendors_health_all_panic() {
+        // Create a mock vendor that panics during health check
+        #[derive(Clone)]
+        struct PanicVendor {
+            vendor_id: String,
+        }
+
+        #[async_trait]
+        impl LLMVendor for PanicVendor {
+            async fn execute(
+                &self,
+                _model: &str,
+                _params: ExecutionParams,
+            ) -> Result<ExecutionResult, ExecutorError> {
+                panic!("Mock panic in execute");
+            }
+
+            fn vendor_id(&self) -> &str {
+                &self.vendor_id
+            }
+
+            fn supports_model(&self, _model: &str) -> bool {
+                true
+            }
+
+            fn calculate_cost(
+                &self,
+                _prompt_tokens: i64,
+                _completion_tokens: i64,
+                _model: &str,
+            ) -> f64 {
+                0.0
+            }
+
+            async fn health_check(
+                &self,
+                _timeout_secs: u64,
+            ) -> Result<(), ExecutorError> {
+                panic!("Mock panic in health check");
+            }
+        }
+
+        // Create repository with only panic vendors
+        let mut vendors: HashMap<String, Arc<dyn LLMVendor>> = HashMap::new();
+        vendors.insert(
+            "panic-vendor-1".to_string(),
+            Arc::new(PanicVendor {
+                vendor_id: "panic-vendor-1".to_string(),
+            }),
+        );
+        vendors.insert(
+            "panic-vendor-2".to_string(),
+            Arc::new(PanicVendor {
+                vendor_id: "panic-vendor-2".to_string(),
+            }),
+        );
+
+        let repository = ExecutorRepository { vendors };
+        let service = ExecutorService {
+            repository: Arc::new(repository),
+            config: ExecutorConfig {
+                openai: None,
+                anthropic_api_key: None,
+                timeout_ms: 30000,
+                max_retries: 3,
+            },
+        };
+
+        // Call check_all_vendors_health
+        // Should fail because all vendors panic
+        let result = service.check_all_vendors_health(2).await;
+
+        // Should fail with NetworkError (from the JoinError handling)
+        assert!(result.is_err());
+        match result {
+            Err(ExecutorError::NetworkError(msg)) => {
+                assert!(msg.contains("Health check task failed"));
+            }
+            _ => panic!("Expected NetworkError from panic handling"),
         }
     }
 }
