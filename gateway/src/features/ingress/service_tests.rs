@@ -17,6 +17,8 @@ mod tests {
     use serde_json::json;
     use std::collections::HashMap;
     use std::sync::Arc;
+    use std::time::Duration;
+    use tokio::sync::RwLock;
 
     #[derive(Clone)]
     struct MockVendor {
@@ -88,6 +90,9 @@ mod tests {
                 timeout_ms: 30000,
                 max_retries: 3,
             },
+            circuit_breakers: Arc::new(RwLock::new(HashMap::new())),
+            circuit_breaker_failure_threshold: 3,
+            circuit_breaker_open_duration: Duration::from_secs(30),
         })
     }
 

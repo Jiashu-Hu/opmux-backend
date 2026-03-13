@@ -27,6 +27,10 @@ pub const MEMORY_SERVICE_TIMEOUT_MS: u64 = 5000;
 pub const ROUTER_SERVICE_TIMEOUT_MS: u64 = 10000;
 pub const REWRITE_SERVICE_TIMEOUT_MS: u64 = 3000;
 
+pub const CONTEXT_CACHE_TTL_SECS: u64 = 10;
+pub const CONTEXT_CACHE_MAX_ENTRIES: usize = 1000;
+pub const SLOW_REQUEST_THRESHOLD_MS: u64 = 1000;
+
 // Error messages are now handled by IngressError enum in error.rs
 
 /// Request validation limits.

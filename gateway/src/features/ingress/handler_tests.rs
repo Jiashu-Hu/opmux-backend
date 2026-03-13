@@ -22,6 +22,8 @@ mod tests {
     use serde_json::json;
     use std::collections::HashMap;
     use std::sync::Arc;
+    use std::time::Duration;
+    use tokio::sync::RwLock;
     use tower::ServiceExt;
 
     #[derive(Clone)]
@@ -94,12 +96,21 @@ mod tests {
                 timeout_ms: 30000,
                 max_retries: 3,
             },
+            circuit_breakers: Arc::new(RwLock::new(HashMap::new())),
+            circuit_breaker_failure_threshold: 3,
+            circuit_breaker_open_duration: Duration::from_secs(30),
         })
     }
 
     fn build_test_app(models: Vec<&str>) -> Router {
+        let executor_service = create_mock_executor_service(models);
         let app_state = AppState {
-            executor_service: create_mock_executor_service(models),
+            ingress_service: Arc::new(
+                crate::features::ingress::service::IngressService::new(
+                    executor_service.clone(),
+                ),
+            ),
+            executor_service,
             health_service: Arc::new(HealthService::new()),
         };
 

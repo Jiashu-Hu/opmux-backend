@@ -7,8 +7,28 @@ use super::{
     repository::ExecutorRepository,
 };
 use crate::core::contracts::RoutePlan;
+use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use tokio::sync::RwLock;
+
+const DEFAULT_CIRCUIT_BREAKER_FAILURE_THRESHOLD: u32 = 3;
+const DEFAULT_CIRCUIT_BREAKER_OPEN_DURATION_SECS: u64 = 30;
+
+#[derive(Debug, Clone)]
+pub(crate) struct CircuitBreakerState {
+    consecutive_failures: u32,
+    opened_until: Option<Instant>,
+}
+
+impl CircuitBreakerState {
+    fn new() -> Self {
+        Self {
+            consecutive_failures: 0,
+            opened_until: None,
+        }
+    }
+}
 
 /// Service for LLM execution with business logic.
 ///
@@ -19,6 +39,9 @@ pub struct ExecutorService {
     pub(crate) repository: Arc<ExecutorRepository>,
     /// Executor configuration for retry logic and timeout settings
     pub(crate) config: ExecutorConfig,
+    pub(crate) circuit_breakers: Arc<RwLock<HashMap<String, CircuitBreakerState>>>,
+    pub(crate) circuit_breaker_failure_threshold: u32,
+    pub(crate) circuit_breaker_open_duration: Duration,
 }
 
 impl ExecutorService {
@@ -37,7 +60,59 @@ impl ExecutorService {
         Ok(Self {
             repository: Arc::new(repository),
             config,
+            circuit_breakers: Arc::new(RwLock::new(HashMap::new())),
+            circuit_breaker_failure_threshold: DEFAULT_CIRCUIT_BREAKER_FAILURE_THRESHOLD,
+            circuit_breaker_open_duration: Duration::from_secs(
+                DEFAULT_CIRCUIT_BREAKER_OPEN_DURATION_SECS,
+            ),
         })
+    }
+
+    async fn circuit_open_retry_after_ms(&self, vendor_id: &str) -> Option<u64> {
+        let mut breakers = self.circuit_breakers.write().await;
+        let state = breakers
+            .entry(vendor_id.to_string())
+            .or_insert_with(CircuitBreakerState::new);
+
+        match state.opened_until {
+            Some(until) if until > Instant::now() => {
+                Some((until - Instant::now()).as_millis() as u64)
+            }
+            Some(_) => {
+                state.opened_until = None;
+                state.consecutive_failures = 0;
+                None
+            }
+            None => None,
+        }
+    }
+
+    async fn record_vendor_success(&self, vendor_id: &str) {
+        let mut breakers = self.circuit_breakers.write().await;
+        let state = breakers
+            .entry(vendor_id.to_string())
+            .or_insert_with(CircuitBreakerState::new);
+        state.consecutive_failures = 0;
+        state.opened_until = None;
+    }
+
+    async fn record_vendor_failure(&self, vendor_id: &str) {
+        let mut breakers = self.circuit_breakers.write().await;
+        let state = breakers
+            .entry(vendor_id.to_string())
+            .or_insert_with(CircuitBreakerState::new);
+        state.consecutive_failures = state.consecutive_failures.saturating_add(1);
+
+        if state.consecutive_failures >= self.circuit_breaker_failure_threshold {
+            let opened_until = Instant::now() + self.circuit_breaker_open_duration;
+            state.opened_until = Some(opened_until);
+            state.consecutive_failures = 0;
+            tracing::warn!(
+                vendor_id = %vendor_id,
+                open_duration_secs = self.circuit_breaker_open_duration.as_secs(),
+                "Circuit breaker opened for vendor"
+            );
+        }
     }
 
     /// Returns the number of registered vendors.
@@ -359,6 +434,18 @@ impl ExecutorService {
 
         // Try each fallback plan sequentially
         for (index, fallback) in fallback_plans.iter().enumerate() {
+            if let Some(retry_after_ms) =
+                self.circuit_open_retry_after_ms(&fallback.vendor_id).await
+            {
+                tracing::warn!(
+                    fallback_index = index + 1,
+                    vendor_id = %fallback.vendor_id,
+                    retry_after_ms = retry_after_ms,
+                    "Skipping fallback due to open circuit"
+                );
+                continue;
+            }
+
             tracing::info!(
                 "Attempting fallback {}/{}: vendor={}, model={}",
                 index + 1,
@@ -373,6 +460,7 @@ impl ExecutorService {
                 .await
             {
                 Ok(result) => {
+                    self.record_vendor_success(&fallback.vendor_id).await;
                     tracing::info!(
                         "Fallback {}/{} succeeded: vendor={}, model={}",
                         index + 1,
@@ -383,6 +471,9 @@ impl ExecutorService {
                     return Ok(result);
                 }
                 Err(e) => {
+                    if Self::is_retryable_error(&e) {
+                        self.record_vendor_failure(&fallback.vendor_id).await;
+                    }
                     tracing::warn!(
                         "Fallback {}/{} failed: vendor={}, model={}, error={:?}",
                         index + 1,
@@ -481,6 +572,25 @@ impl ExecutorService {
         plan: &RoutePlan,
         payload: &serde_json::Value,
     ) -> Result<ExecutionResult, ExecutorError> {
+        if let Some(retry_after_ms) =
+            self.circuit_open_retry_after_ms(&plan.vendor_id).await
+        {
+            tracing::warn!(
+                vendor_id = %plan.vendor_id,
+                retry_after_ms = retry_after_ms,
+                "Primary vendor circuit is open, skipping primary execution"
+            );
+
+            let params = Self::extract_params(payload)?;
+            let circuit_open_error = ExecutorError::CircuitOpen {
+                vendor: plan.vendor_id.clone(),
+                retry_after_ms,
+            };
+            return self
+                .execute_fallbacks(&plan.fallback_plans, &params, circuit_open_error)
+                .await;
+        }
+
         // Extract parameters once (shared across retries and fallbacks)
         let params = Self::extract_params(payload)?;
 
@@ -496,6 +606,7 @@ impl ExecutorService {
             .await
         {
             Ok(result) => {
+                self.record_vendor_success(&plan.vendor_id).await;
                 tracing::info!(
                     "Primary execution succeeded: vendor={}, model={}, tokens={}, cost=${}",
                     plan.vendor_id,
@@ -506,6 +617,9 @@ impl ExecutorService {
                 Ok(result)
             }
             Err(primary_error) => {
+                if Self::is_retryable_error(&primary_error) {
+                    self.record_vendor_failure(&plan.vendor_id).await;
+                }
                 tracing::warn!(
                     "Primary execution failed: vendor={}, model={}, error={:?}",
                     plan.vendor_id,

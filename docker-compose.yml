@@ -1,0 +1,16 @@
+services:
+  gateway:
+    build:
+      context: .
+      dockerfile: gateway/Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      SERVER_HOST: 0.0.0.0
+      SERVER_PORT: 3000
+      LOG_LEVEL: info
+      LOG_JSON: "false"
+      METRICS_ENABLED: "true"
+      METRICS_PATH: /metrics
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-dummy-key}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-http://host.docker.internal:9/v1}

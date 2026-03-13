@@ -64,6 +64,23 @@ Additional guides:
 - `docs/PROMETHEUS.md`
 - `gateway/tests/OBSERVABILITY_TESTING.md`
 
+## API and Operations Docs
+
+- API reference: `docs/API_REFERENCE.md`
+- Operations runbook: `docs/OPERATIONS_RUNBOOK.md`
+- Configuration troubleshooting: `docs/CONFIGURATION_TROUBLESHOOTING.md`
+- Performance/load testing: `gateway/tests/PERFORMANCE_LOAD_TESTING.md`
+
+## Docker Deployment
+
+Build and run with Docker Compose:
+
+```bash
+docker compose up --build
+```
+
+Service is exposed on `http://127.0.0.1:3000`.
+
 ### Code Formatting
 
 This project uses both Rust's built-in formatter and Prettier for different file types:

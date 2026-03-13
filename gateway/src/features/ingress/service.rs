@@ -1,7 +1,9 @@
 // Service Layer - Business logic and orchestration
 
 use super::{
-    constants::AI_RESPONSE_ROLE, error::IngressError, repository::IngressRepository,
+    constants::{AI_RESPONSE_ROLE, SLOW_REQUEST_THRESHOLD_MS},
+    error::IngressError,
+    repository::IngressRepository,
 };
 use crate::core::correlation::RequestContext;
 use crate::features::executor::service::ExecutorService;
@@ -47,6 +49,7 @@ pub struct IngressResponse {
 /// AI routing, and response aggregation.
 pub struct IngressService {
     repository: IngressRepository,
+    slow_request_threshold_ms: u64,
 }
 
 impl IngressService {
@@ -55,8 +58,15 @@ impl IngressService {
     /// # Parameters
     /// - `executor_service` - Shared ExecutorService instance for LLM execution
     pub fn new(executor_service: Arc<ExecutorService>) -> Self {
+        let slow_request_threshold_ms =
+            std::env::var("INGRESS_SLOW_REQUEST_THRESHOLD_MS")
+                .ok()
+                .and_then(|v| v.parse::<u64>().ok())
+                .unwrap_or(SLOW_REQUEST_THRESHOLD_MS);
+
         Self {
             repository: IngressRepository::new(executor_service),
+            slow_request_threshold_ms,
         }
     }
 
@@ -162,6 +172,14 @@ impl IngressService {
 
         // Step 6: Calculate processing time and return response
         let processing_time_ms = start_time.elapsed().as_millis() as u64;
+        if processing_time_ms >= self.slow_request_threshold_ms {
+            tracing::warn!(
+                processing_time_ms = processing_time_ms,
+                threshold_ms = self.slow_request_threshold_ms,
+                user_id = %user_id,
+                "Slow ingress request detected"
+            );
+        }
         tracing::debug!(
             processing_time_ms = processing_time_ms,
             "Request processing completed"

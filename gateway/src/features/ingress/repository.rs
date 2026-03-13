@@ -1,10 +1,17 @@
 // Repository Layer - gRPC client management & mocks
 
-use super::{error::IngressError, mockdata::MockDataProvider};
+use super::{
+    constants::{CONTEXT_CACHE_MAX_ENTRIES, CONTEXT_CACHE_TTL_SECS},
+    error::IngressError,
+    mockdata::MockDataProvider,
+};
 use crate::core::contracts::RoutePlan;
 use crate::core::correlation::RequestContext;
 use crate::features::executor::{models::ExecutionResult, service::ExecutorService};
+use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::{Duration, Instant};
+use tokio::sync::RwLock;
 
 /// User conversation context from Memory Service.
 #[derive(Debug, Clone)]
@@ -31,6 +38,15 @@ pub struct RouterServiceResponse {
 pub struct IngressRepository {
     /// Executor service for LLM execution with retry and fallback logic
     executor_service: Arc<ExecutorService>,
+    context_cache: Arc<RwLock<HashMap<String, CachedContext>>>,
+    context_cache_ttl: Duration,
+    context_cache_max_entries: usize,
+}
+
+#[derive(Debug, Clone)]
+struct CachedContext {
+    data: ContextData,
+    cached_at: Instant,
 }
 
 impl IngressRepository {
@@ -39,7 +55,12 @@ impl IngressRepository {
     /// # Parameters
     /// - `executor_service` - Shared ExecutorService instance for LLM execution
     pub fn new(executor_service: Arc<ExecutorService>) -> Self {
-        Self { executor_service }
+        Self {
+            executor_service,
+            context_cache: Arc::new(RwLock::new(HashMap::new())),
+            context_cache_ttl: Duration::from_secs(CONTEXT_CACHE_TTL_SECS),
+            context_cache_max_entries: CONTEXT_CACHE_MAX_ENTRIES,
+        }
     }
 
     /// Retrieves user conversation context from Memory Service.
@@ -52,9 +73,23 @@ impl IngressRepository {
     /// User's conversation history and preferences
     pub async fn get_context(
         &self,
-        _user_id: &str,
+        user_id: &str,
         _request_context: &RequestContext,
     ) -> Result<ContextData, IngressError> {
+        {
+            let cache = self.context_cache.read().await;
+            if let Some(cached) = cache.get(user_id) {
+                if cached.cached_at.elapsed() < self.context_cache_ttl {
+                    tracing::debug!(
+                        user_id = %user_id,
+                        ttl_secs = self.context_cache_ttl.as_secs(),
+                        "Context cache hit"
+                    );
+                    return Ok(cached.data.clone());
+                }
+            }
+        }
+
         // Mock implementation - real version will use gRPC to Memory Service
         // Future: Build gRPC RequestMeta from request_context
         // let grpc_request = GetContextRequest {
@@ -67,7 +102,29 @@ impl IngressRepository {
         //     user_id: user_id.to_string(),
         // };
         // gRPC failures mapped to ContextRetrievalFailed
-        Ok(MockDataProvider::get_mock_context())
+        let context = MockDataProvider::get_mock_context();
+        {
+            let mut cache = self.context_cache.write().await;
+            cache.retain(|_, entry| entry.cached_at.elapsed() < self.context_cache_ttl);
+            if cache.len() >= self.context_cache_max_entries {
+                if let Some(evict_key) = cache
+                    .iter()
+                    .min_by_key(|(_, entry)| entry.cached_at)
+                    .map(|(key, _)| key.clone())
+                {
+                    cache.remove(&evict_key);
+                }
+            }
+            cache.insert(
+                user_id.to_string(),
+                CachedContext {
+                    data: context.clone(),
+                    cached_at: Instant::now(),
+                },
+            );
+        }
+        tracing::debug!(user_id = %user_id, "Context cache miss");
+        Ok(context)
     }
 
     /// Optimizes routing strategy via Router Service.
@@ -173,7 +230,7 @@ impl IngressRepository {
     /// - `request_context` - Request context with correlation IDs for gRPC metadata
     pub async fn update_context(
         &self,
-        _user_id: &str,
+        user_id: &str,
         _new_message: &str,
         _response: &str,
         _request_context: &RequestContext,
@@ -192,6 +249,10 @@ impl IngressRepository {
         //     response: response.to_string(),
         // };
         // gRPC failures mapped to ContextUpdateFailed
+        {
+            let mut cache = self.context_cache.write().await;
+            cache.remove(user_id);
+        }
         Ok(())
     }
 
@@ -216,4 +277,174 @@ impl IngressRepository {
     //     // gRPC failures mapped to RequestOrchestrationFailed
     //     unimplemented!("RewriteService not yet implemented")
     // }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::features::executor::{
+        config::ExecutorConfig,
+        error::ExecutorError,
+        models::{ExecutionParams, ExecutionResult},
+        repository::ExecutorRepository,
+        service::ExecutorService,
+        vendors::LLMVendor,
+    };
+    use async_trait::async_trait;
+    use std::collections::HashMap;
+    use std::sync::Arc;
+    use tokio::sync::RwLock;
+
+    #[derive(Clone)]
+    struct MockVendor {
+        vendor_id: String,
+    }
+
+    #[async_trait]
+    impl LLMVendor for MockVendor {
+        async fn execute(
+            &self,
+            model: &str,
+            _params: ExecutionParams,
+        ) -> Result<ExecutionResult, ExecutorError> {
+            Ok(ExecutionResult {
+                content: "ok".to_string(),
+                model_used: model.to_string(),
+                prompt_tokens: 1,
+                completion_tokens: 1,
+                total_cost: 0.0,
+                finish_reason: "stop".to_string(),
+            })
+        }
+
+        fn vendor_id(&self) -> &str {
+            &self.vendor_id
+        }
+
+        fn supports_model(&self, _model: &str) -> bool {
+            true
+        }
+
+        fn calculate_cost(
+            &self,
+            _prompt_tokens: i64,
+            _completion_tokens: i64,
+            _model: &str,
+        ) -> f64 {
+            0.0
+        }
+
+        async fn health_check(&self, _timeout_secs: u64) -> Result<(), ExecutorError> {
+            Ok(())
+        }
+    }
+
+    fn create_repository() -> IngressRepository {
+        let mut vendors: HashMap<String, Arc<dyn LLMVendor>> = HashMap::new();
+        vendors.insert(
+            "openai".to_string(),
+            Arc::new(MockVendor {
+                vendor_id: "openai".to_string(),
+            }),
+        );
+
+        let executor = Arc::new(ExecutorService {
+            repository: Arc::new(ExecutorRepository { vendors }),
+            config: ExecutorConfig {
+                openai: None,
+                anthropic_api_key: None,
+                timeout_ms: 30000,
+                max_retries: 0,
+            },
+            circuit_breakers: Arc::new(RwLock::new(HashMap::new())),
+            circuit_breaker_failure_threshold: 3,
+            circuit_breaker_open_duration: Duration::from_secs(30),
+        });
+
+        IngressRepository::new(executor)
+    }
+
+    #[tokio::test]
+    async fn test_get_context_populates_cache_for_user() {
+        let repository = create_repository();
+        let request_context = RequestContext::new("req-1".to_string(), None);
+
+        let _ = repository
+            .get_context("user-a", &request_context)
+            .await
+            .expect("context retrieval should succeed");
+
+        let cache = repository.context_cache.read().await;
+        assert!(cache.contains_key("user-a"));
+    }
+
+    #[tokio::test]
+    async fn test_get_context_refreshes_expired_cache_entry() {
+        let mut repository = create_repository();
+        repository.context_cache_ttl = Duration::from_millis(10);
+        let request_context = RequestContext::new("req-2".to_string(), None);
+
+        let _ = repository
+            .get_context("user-b", &request_context)
+            .await
+            .expect("first context retrieval should succeed");
+
+        tokio::time::sleep(Duration::from_millis(20)).await;
+
+        let _ = repository
+            .get_context("user-b", &request_context)
+            .await
+            .expect("second context retrieval should succeed after ttl expiry");
+
+        let cache = repository.context_cache.read().await;
+        assert!(cache.contains_key("user-b"));
+    }
+
+    #[tokio::test]
+    async fn test_get_context_evicts_oldest_when_cache_is_full() {
+        let mut repository = create_repository();
+        repository.context_cache_max_entries = 1;
+        let request_context = RequestContext::new("req-3".to_string(), None);
+
+        let _ = repository
+            .get_context("user-1", &request_context)
+            .await
+            .expect("first context retrieval should succeed");
+
+        tokio::time::sleep(Duration::from_millis(2)).await;
+
+        let _ = repository
+            .get_context("user-2", &request_context)
+            .await
+            .expect("second context retrieval should succeed");
+
+        let cache = repository.context_cache.read().await;
+        assert!(!cache.contains_key("user-1"));
+        assert!(cache.contains_key("user-2"));
+        assert_eq!(cache.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_update_context_invalidates_cached_user_context() {
+        let repository = create_repository();
+        let request_context = RequestContext::new("req-4".to_string(), None);
+
+        let _ = repository
+            .get_context("user-c", &request_context)
+            .await
+            .expect("context retrieval should succeed");
+
+        {
+            let cache = repository.context_cache.read().await;
+            assert!(cache.contains_key("user-c"));
+        }
+
+        repository
+            .update_context("user-c", "hello", "world", &request_context)
+            .await
+            .expect("update_context should succeed");
+
+        let cache = repository.context_cache.read().await;
+        assert!(!cache.contains_key("user-c"));
+    }
 }

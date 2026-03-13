@@ -61,9 +61,15 @@ async fn main() {
     ));
     tracing::info!("HealthService initialized");
 
+    let ingress_service = Arc::new(ingress::service::IngressService::new(
+        executor_service.clone(),
+    ));
+    tracing::info!("IngressService initialized");
+
     // Create application state with all shared services
     let app_state = AppState {
         executor_service,
+        ingress_service,
         health_service,
     };
 

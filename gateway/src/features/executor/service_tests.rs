@@ -2,6 +2,7 @@
 
 #[cfg(test)]
 mod tests {
+    use crate::core::contracts::RoutePlan;
     use crate::features::executor::{
         config::{ExecutorConfig, OpenAIConfig},
         error::ExecutorError,
@@ -15,6 +16,8 @@ mod tests {
     use std::collections::HashMap;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Arc;
+    use std::time::Duration;
+    use tokio::sync::RwLock;
 
     /// Configurable mock vendor for testing.
     ///
@@ -165,6 +168,9 @@ mod tests {
         ExecutorService {
             repository: Arc::new(repository),
             config,
+            circuit_breakers: Arc::new(RwLock::new(HashMap::new())),
+            circuit_breaker_failure_threshold: 3,
+            circuit_breaker_open_duration: Duration::from_secs(30),
         }
     }
 
@@ -560,6 +566,9 @@ mod tests {
                 timeout_ms: 30000,
                 max_retries: 3,
             },
+            circuit_breakers: Arc::new(RwLock::new(HashMap::new())),
+            circuit_breaker_failure_threshold: 3,
+            circuit_breaker_open_duration: Duration::from_secs(30),
         };
 
         // Call check_all_vendors_health
@@ -638,6 +647,9 @@ mod tests {
                 timeout_ms: 30000,
                 max_retries: 3,
             },
+            circuit_breakers: Arc::new(RwLock::new(HashMap::new())),
+            circuit_breaker_failure_threshold: 3,
+            circuit_breaker_open_duration: Duration::from_secs(30),
         };
 
         // Call check_all_vendors_health
@@ -652,5 +664,122 @@ mod tests {
             }
             _ => panic!("Expected NetworkError from panic handling"),
         }
+    }
+
+    #[tokio::test]
+    async fn test_circuit_breaker_opens_after_consecutive_primary_failures() {
+        let failing_vendor = Arc::new(MockVendor::new_always_fail(
+            "openai",
+            vec!["gpt-4"],
+            ExecutorError::NetworkError("simulated network failure".to_string()),
+        ));
+        let mut service =
+            create_mock_service(vec![("openai".to_string(), failing_vendor)]);
+        service.config.max_retries = 0;
+        service.circuit_breaker_failure_threshold = 2;
+        service.circuit_breaker_open_duration = Duration::from_secs(60);
+
+        let payload = json!({
+            "messages": [
+                {"role": "user", "content": "hello"}
+            ]
+        });
+        let plan = RoutePlan {
+            vendor_id: "openai".to_string(),
+            model_id: "gpt-4".to_string(),
+            fallback_plans: vec![],
+        };
+
+        let first = service.execute(&plan, &payload).await;
+        assert!(matches!(first, Err(ExecutorError::NetworkError(_))));
+
+        let second = service.execute(&plan, &payload).await;
+        assert!(matches!(second, Err(ExecutorError::NetworkError(_))));
+
+        let third = service.execute(&plan, &payload).await;
+        match third {
+            Err(ExecutorError::CircuitOpen {
+                vendor,
+                retry_after_ms,
+            }) => {
+                assert_eq!(vendor, "openai");
+                assert!(retry_after_ms > 0);
+            }
+            _ => panic!("Expected CircuitOpen after threshold reached"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_circuit_open_primary_degrades_to_fallback() {
+        let failing_primary = Arc::new(MockVendor::new_always_fail(
+            "openai",
+            vec!["gpt-4"],
+            ExecutorError::NetworkError("simulated network failure".to_string()),
+        ));
+        let healthy_fallback =
+            Arc::new(MockVendor::new_success("backup", vec!["gpt-4-turbo"]));
+
+        let mut service = create_mock_service(vec![
+            ("openai".to_string(), failing_primary),
+            ("backup".to_string(), healthy_fallback),
+        ]);
+        service.config.max_retries = 0;
+        service.circuit_breaker_failure_threshold = 1;
+        service.circuit_breaker_open_duration = Duration::from_secs(60);
+
+        let payload = json!({
+            "messages": [
+                {"role": "user", "content": "hello"}
+            ]
+        });
+        let plan = RoutePlan {
+            vendor_id: "openai".to_string(),
+            model_id: "gpt-4".to_string(),
+            fallback_plans: vec![RoutePlan {
+                vendor_id: "backup".to_string(),
+                model_id: "gpt-4-turbo".to_string(),
+                fallback_plans: vec![],
+            }],
+        };
+
+        let first = service.execute(&plan, &payload).await;
+        assert!(first.is_ok());
+
+        let second = service.execute(&plan, &payload).await;
+        assert!(second.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_non_retryable_failures_do_not_open_circuit() {
+        let auth_failing_vendor = Arc::new(MockVendor::new_always_fail(
+            "openai",
+            vec!["gpt-4"],
+            ExecutorError::AuthenticationFailed("openai".to_string()),
+        ));
+        let mut service =
+            create_mock_service(vec![("openai".to_string(), auth_failing_vendor)]);
+        service.config.max_retries = 0;
+        service.circuit_breaker_failure_threshold = 1;
+        service.circuit_breaker_open_duration = Duration::from_secs(60);
+
+        let payload = json!({
+            "messages": [
+                {"role": "user", "content": "hello"}
+            ]
+        });
+        let plan = RoutePlan {
+            vendor_id: "openai".to_string(),
+            model_id: "gpt-4".to_string(),
+            fallback_plans: vec![],
+        };
+
+        let first = service.execute(&plan, &payload).await;
+        assert!(matches!(first, Err(ExecutorError::AuthenticationFailed(_))));
+
+        let second = service.execute(&plan, &payload).await;
+        assert!(matches!(
+            second,
+            Err(ExecutorError::AuthenticationFailed(_))
+        ));
     }
 }

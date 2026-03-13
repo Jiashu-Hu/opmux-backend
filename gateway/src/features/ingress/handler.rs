@@ -3,7 +3,7 @@
 use super::{
     constants::{MAX_METADATA_SIZE, MAX_PROMPT_LENGTH, MIN_PROMPT_LENGTH},
     error::IngressError,
-    service::{IngressRequest, IngressResponse, IngressService},
+    service::{IngressRequest, IngressResponse},
 };
 use crate::{core::correlation::RequestContext, features::auth::AuthContext, AppState};
 use axum::{
@@ -84,15 +84,13 @@ pub async fn ingress_handler(
 
     tracing::debug!("Request validation passed");
 
-    // Create service instance with ExecutorService dependency
-    let service = IngressService::new(state.executor_service);
-
     // Use client_id from authentication context
     let user_id = auth_context.client_id;
 
     // Process the request through service layer
     // Pass request_context for gRPC metadata construction
-    match service
+    match state
+        .ingress_service
         .process_request(request, user_id, &request_context)
         .await
     {

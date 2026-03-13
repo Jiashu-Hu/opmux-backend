@@ -2,6 +2,13 @@
 
 This directory contains integration tests for the Gateway service that make real API calls to external services.
 
+## Additional Task 13 Artifacts
+
+- End-to-end integration coverage for resilience behavior in `observability_integration_test.rs`
+  (circuit-open transition under repeated upstream failures).
+- Performance/load testing guide in `PERFORMANCE_LOAD_TESTING.md`.
+- Load test runner script at `scripts/run-load-tests.sh`.
+
 ## Executor Layer Integration Tests
 
 ### Overview
@@ -238,4 +245,3 @@ integration-tests:
         OPENAI_BASE_URL: ${{ secrets.OPENAI_BASE_URL }}
       run: cargo test --test executor_integration_test
 ```
-

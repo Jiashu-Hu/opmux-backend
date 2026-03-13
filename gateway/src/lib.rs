@@ -34,6 +34,9 @@ pub struct AppState {
     /// Shared ExecutorService for LLM execution across all requests
     pub executor_service: Arc<features::executor::service::ExecutorService>,
 
+    /// Shared IngressService for request orchestration and caching across all requests
+    pub ingress_service: Arc<features::ingress::service::IngressService>,
+
     /// Shared HealthService for health and readiness checks
     pub health_service: Arc<features::health::HealthService>,
 }

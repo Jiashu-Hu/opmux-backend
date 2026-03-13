@@ -18,7 +18,7 @@ This implementation plan follows the **business-logic-first development principl
 
 **Subtasks**:
 
-- [ ] 10.1.1 Update Cargo.toml Dependencies
+- [x] 10.1.1 Update Cargo.toml Dependencies
   - Add `tower-http = { version = "0.5", features = ["trace", "request-id"] }`
   - Add `uuid = { version = "1.0", features = ["v4", "serde"] }`
   - Add `axum-prometheus = "0.7"`
@@ -26,7 +26,7 @@ This implementation plan follows the **business-logic-first development principl
   - Verify all dependencies compile
   - _Requirement: Requirement 5 - Monitoring and Observability_
 
-- [ ] 10.1.2 Create Core Correlation Module
+- [x] 10.1.2 Create Core Correlation Module
   - Create `gateway/src/core/correlation.rs`
   - Define `RequestContext` struct with `request_id`, `client_correlation_id`, `timestamp`
   - Implement `Debug`, `Clone` traits
@@ -34,7 +34,7 @@ This implementation plan follows the **business-logic-first development principl
   - Export from `core/mod.rs`
   - _Requirement: Requirement 5 - Monitoring and Observability_
 
-- [ ] 10.1.3 Create Core Tracing Module
+- [x] 10.1.3 Create Core Tracing Module
   - Create `gateway/src/core/tracing.rs`
   - Define `TracingConfig` struct with environment-based configuration
   - Define `LogFormat` enum (Json, Pretty)
@@ -47,7 +47,7 @@ This implementation plan follows the **business-logic-first development principl
   - Export from `core/mod.rs`
   - _Requirement: Requirement 5 - Monitoring and Observability_
 
-- [ ] 10.1.4 Create Core Metrics Module
+- [x] 10.1.4 Create Core Metrics Module
   - Create `gateway/src/core/metrics.rs`
   - Define metrics registry structure (placeholder for Phase 2 custom metrics)
   - Add helper functions for metrics initialization
@@ -60,7 +60,7 @@ This implementation plan follows the **business-logic-first development principl
 
 **Subtasks**:
 
-- [ ] 10.2.1 Create Correlation ID Middleware
+- [x] 10.2.1 Create Correlation ID Middleware
   - Create `gateway/src/middleware/correlation_id.rs`
   - Implement `correlation_id_middleware` function with fail-safe design
   - Generate unique `request_id` using UUID v4 with timestamp fallback
@@ -74,7 +74,7 @@ This implementation plan follows the **business-logic-first development principl
   - Ensure middleware never returns error (fail-safe design)
   - _Requirement: Requirement 5 - Monitoring and Observability_
 
-- [ ] 10.2.2 Add Unit Tests for Correlation Middleware
+- [x] 10.2.2 Add Unit Tests for Correlation Middleware
   - Test request ID generation (always generates UUID)
   - Test UUID generation fallback (simulate failure, use timestamp)
   - Test client correlation ID extraction (when provided)
@@ -86,7 +86,7 @@ This implementation plan follows the **business-logic-first development principl
   - Test middleware never fails (fail-safe design)
   - _Requirement: Requirement 5 - Monitoring and Observability_
 
-- [ ] 10.2.3 Export Middleware
+- [x] 10.2.3 Export Middleware
   - Export `correlation_id_middleware` from `middleware/mod.rs`
   - Update module documentation
   - _Requirement: Requirement 5 - Monitoring and Observability_

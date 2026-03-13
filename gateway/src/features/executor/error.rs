@@ -56,6 +56,9 @@ pub enum ExecutorError {
     /// No vendors configured in ExecutorConfig.
     #[error("No LLM vendors configured")]
     NoVendorsConfigured,
+
+    #[error("Circuit breaker open for vendor '{vendor}'")]
+    CircuitOpen { vendor: String, retry_after_ms: u64 },
 }
 
 impl IntoResponse for ExecutorError {
@@ -87,6 +90,17 @@ impl IntoResponse for ExecutorError {
                 StatusCode::TOO_MANY_REQUESTS,
                 "rate_limit_exceeded",
                 format!("Rate limit exceeded for vendor '{}'", vendor),
+            ),
+            Self::CircuitOpen {
+                vendor,
+                retry_after_ms,
+            } => (
+                StatusCode::SERVICE_UNAVAILABLE,
+                "circuit_open",
+                format!(
+                    "Vendor '{}' temporarily unavailable, retry after {}ms",
+                    vendor, retry_after_ms
+                ),
             ),
 
             // Server errors (5xx) - return generic message for security

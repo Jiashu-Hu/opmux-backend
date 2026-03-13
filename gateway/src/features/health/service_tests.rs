@@ -14,6 +14,8 @@ mod tests {
     use serial_test::serial;
     use std::collections::HashMap;
     use std::sync::Arc;
+    use std::time::Duration;
+    use tokio::sync::RwLock;
 
     /// Mock LLM vendor for testing health checks.
     ///
@@ -127,6 +129,9 @@ mod tests {
                 timeout_ms: 30000,
                 max_retries: 3,
             },
+            circuit_breakers: Arc::new(RwLock::new(HashMap::new())),
+            circuit_breaker_failure_threshold: 3,
+            circuit_breaker_open_duration: Duration::from_secs(30),
         }))
     }
 
@@ -367,6 +372,9 @@ mod tests {
                 timeout_ms: 30000,
                 max_retries: 3,
             },
+            circuit_breakers: Arc::new(RwLock::new(HashMap::new())),
+            circuit_breaker_failure_threshold: 3,
+            circuit_breaker_open_duration: Duration::from_secs(30),
         });
 
         // Create HealthService with executor
@@ -487,6 +495,9 @@ mod tests {
         let executor =
             create_mock_executor_service(true).expect("Failed to create executor");
         let app_state = AppState {
+            ingress_service: Arc::new(
+                crate::features::ingress::service::IngressService::new(executor.clone()),
+            ),
             executor_service: executor,
             health_service: Arc::new(health_service),
         };
@@ -549,6 +560,9 @@ mod tests {
         use std::sync::Arc;
 
         let app_state = AppState {
+            ingress_service: Arc::new(
+                crate::features::ingress::service::IngressService::new(executor.clone()),
+            ),
             executor_service: executor,
             health_service: Arc::new(service),
         };

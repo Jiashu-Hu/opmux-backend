@@ -14,6 +14,7 @@ use gateway::{
     middleware::correlation_id::correlation_id_middleware,
     AppState,
 };
+use serde_json::json;
 use serial_test::serial;
 use std::sync::Arc;
 use tower::ServiceExt;
@@ -35,8 +36,12 @@ fn build_test_app(
     include_metrics: bool,
 ) -> Router {
     let executor_service = create_executor_service();
+    let ingress_service = Arc::new(ingress::service::IngressService::new(
+        executor_service.clone(),
+    ));
 
     let app_state = AppState {
+        ingress_service,
         executor_service,
         health_service,
     };
@@ -181,4 +186,42 @@ async fn test_ready_endpoint_with_unhealthy_dependencies() {
     let body_str = String::from_utf8(body.to_vec()).unwrap();
     assert!(body_str.contains("\"status\":\"not_ready\""));
     assert!(body_str.contains("\"status\":\"unhealthy\""));
+}
+
+#[tokio::test]
+#[serial]
+async fn test_repeated_ingress_calls_transition_to_circuit_open() {
+    let app = build_test_app(Arc::new(health::HealthService::new()), false);
+
+    let request_body = json!({ "prompt": "load", "metadata": {} }).to_string();
+
+    for _ in 0..3 {
+        let request = Request::builder()
+            .method("POST")
+            .uri("/api/v1/route")
+            .header("content-type", "application/json")
+            .header("x-api-key", "test-api-key-123")
+            .body(Body::from(request_body.clone()))
+            .unwrap();
+
+        let response = app.clone().oneshot(request).await.unwrap();
+        assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    }
+
+    let request = Request::builder()
+        .method("POST")
+        .uri("/api/v1/route")
+        .header("content-type", "application/json")
+        .header("x-api-key", "test-api-key-123")
+        .body(Body::from(request_body))
+        .unwrap();
+
+    let response = app.oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let body_str = String::from_utf8(body.to_vec()).unwrap();
+    assert!(body_str.contains("\"code\":\"circuit_open\""));
 }
